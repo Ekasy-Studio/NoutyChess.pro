@@ -60,4 +60,3 @@ Nunca coloque senha administrativa no frontend ou no repositório. O acesso ao p
 ## Código aberto no GitHub
 
 O repositório contém apenas código e exemplos seguros. Segredos de administração, Pix e serviços externos devem permanecer fora do Git e ser configurados no ambiente de hospedagem.
-

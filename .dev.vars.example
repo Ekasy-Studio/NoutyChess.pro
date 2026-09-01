@@ -1,0 +1,2 @@
+# Copie para .dev.vars apenas no ambiente local. Não faça commit de .dev.vars.
+NOUTY_ADMIN_EMAILS=administrador@exemplo.com
