@@ -11,13 +11,13 @@ export const metadata: Metadata = {
     title: 'NoutyChess.pro — Jogue melhor',
     description: 'Seu próximo grande lance começa aqui.',
     type: 'website',
-    images: [{ url: '/og.png', width: 1200, height: 630, alt: 'NoutyChess.pro — Feito pela Ekasy-Studio.' }],
+    images: [{ url: '/og.jpg', width: 1200, height: 630, alt: 'NoutyChess.pro — Feito pela Ekasy-Studio.' }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'NoutyChess.pro — Jogue melhor',
     description: 'Seu próximo grande lance começa aqui.',
-    images: ['/og.png'],
+    images: ['/og.jpg'],
   },
 };
 
@@ -28,3 +28,4 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     </html>
   );
 }
+
