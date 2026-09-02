@@ -51,7 +51,14 @@ export function xpForNextLevel(level: number): number {
   return 500 + Math.max(0, level - 1) * 125;
 }
 
+function nullableNumber(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
 function rowToProfile(row: Record<string, unknown>): CompetitiveProfile {
+  const memberUntil = nullableNumber(row.member_until);
   return {
     userId: String(row.user_id),
     displayName: String(row.display_name),
@@ -71,13 +78,13 @@ function rowToProfile(row: Record<string, unknown>): CompetitiveProfile {
     coins: Number(row.coins),
     xp: Number(row.xp),
     level: Number(row.level),
-    bannedUntil: row.banned_until === null ? null : Number(row.banned_until),
-    banReason: row.ban_reason === null ? null : String(row.ban_reason),
-    chatMutedUntil: row.chat_muted_until === null || row.chat_muted_until === undefined ? null : Number(row.chat_muted_until),
+    bannedUntil: nullableNumber(row.banned_until),
+    banReason: row.ban_reason === null || row.ban_reason === undefined ? null : String(row.ban_reason),
+    chatMutedUntil: nullableNumber(row.chat_muted_until),
     chatMuteReason: row.chat_mute_reason === null || row.chat_mute_reason === undefined ? null : String(row.chat_mute_reason),
-    membershipTier: row.membership_tier === 'legend' && Number(row.member_until) > Date.now() ? 'legend' : 'free',
-    memberSince: row.member_since === null || row.member_since === undefined ? null : Number(row.member_since),
-    memberUntil: row.member_until === null || row.member_until === undefined ? null : Number(row.member_until),
+    membershipTier: row.membership_tier === 'legend' && Boolean(memberUntil && memberUntil > Date.now()) ? 'legend' : 'free',
+    memberSince: nullableNumber(row.member_since),
+    memberUntil,
   };
 }
 
@@ -85,11 +92,11 @@ export async function getOrCreateProfile(user: ChatGPTUser): Promise<Competitive
   await ensureSchema();
   const d1 = getD1();
   const now = Date.now();
-  const displayName = user.displayName.replace(/[<>]/g, '').trim().slice(0, 40) || 'Jogador';
+  const displayName = user.displayName.replace(/[<>\u0000-\u001f]/g, '').trim().slice(0, 40) || 'Jogador';
   await d1.prepare(
     `INSERT INTO profiles (user_id, display_name, created_at, updated_at)
      VALUES (?, ?, ?, ?)
-     ON CONFLICT(user_id) DO UPDATE SET display_name = excluded.display_name, updated_at = excluded.updated_at`,
+     ON CONFLICT(user_id) DO UPDATE SET updated_at = excluded.updated_at`,
   ).bind(user.userId, displayName, now, now).run();
   const row = await d1.prepare('SELECT * FROM profiles WHERE user_id = ?').bind(user.userId).first<Record<string, unknown>>();
   if (!row) throw new Error('Não foi possível carregar o perfil competitivo.');
@@ -129,8 +136,9 @@ export async function updatePublicProfile(user: ChatGPTUser, input: { displayNam
   if (input.boardTheme !== 'emerald' && input.boardTheme !== 'aurora' && !allowed.has(`board:${input.boardTheme}`)) throw new Error('Este tabuleiro ainda não foi desbloqueado.');
   if (input.pieceTheme !== 'classic' && input.pieceTheme !== 'prisma' && !allowed.has(`pieces:${input.pieceTheme}`)) throw new Error('Este conjunto de peças ainda não foi desbloqueado.');
   const d1 = getD1();
-  await d1.prepare('UPDATE profiles SET display_name = ?, avatar_emote = ?, profile_title = ?, board_theme = ?, piece_theme = ?, updated_at = ? WHERE user_id = ?')
+  const result = await d1.prepare('UPDATE profiles SET display_name = ?, avatar_emote = ?, profile_title = ?, board_theme = ?, piece_theme = ?, updated_at = ? WHERE user_id = ?')
     .bind(displayName, input.avatarEmote, input.profileTitle, input.boardTheme, input.pieceTheme, Date.now(), user.userId).run();
+  if ((result.meta.changes ?? 0) !== 1) throw new Error('Não foi possível salvar o perfil.');
   const row = await d1.prepare('SELECT * FROM profiles WHERE user_id = ?').bind(user.userId).first<Record<string, unknown>>();
   if (!row) throw new Error('Perfil não encontrado.');
   const profile = rowToProfile(row);
@@ -186,19 +194,28 @@ export async function heartbeatRoom(user: ChatGPTUser, code: string, role: 'host
   const now = Date.now();
 
   if (role === 'host') {
-    await d1.prepare(
+    const result = await d1.prepare(
       `INSERT INTO rooms (code, host_id, status, created_at, last_seen_at, matchmaking) VALUES (?, ?, 'waiting', ?, ?, ?)
        ON CONFLICT(code) DO UPDATE SET last_seen_at = excluded.last_seen_at, matchmaking = excluded.matchmaking
-       WHERE rooms.host_id = excluded.host_id`,
+       WHERE rooms.host_id = excluded.host_id AND rooms.status IN ('waiting','playing')`,
     ).bind(code, user.userId, now, now, matchmaking ? 1 : 0).run();
+    if ((result.meta.changes ?? 0) !== 1) throw new Error('Este código de sala já está em uso. Crie outra sala.');
     return;
   }
 
-  const room = await d1.prepare('SELECT host_id, guest_id, status FROM rooms WHERE code = ?').bind(code).first<Record<string, unknown>>();
-  if (!room || room.status === 'closed' || room.status === 'terminated') throw new Error('Sala indisponível.');
-  if (String(room.host_id) === user.userId) throw new Error('Você não pode enfrentar a própria conta.');
-  if (room.guest_id && String(room.guest_id) !== user.userId) throw new Error('A sala já está completa.');
-  await d1.prepare(`UPDATE rooms SET guest_id = ?, status = 'playing', last_seen_at = ? WHERE code = ?`).bind(user.userId, now, code).run();
+  const result = await d1.prepare(`UPDATE rooms
+    SET guest_id = ?, status = 'playing', matchmaking = 0, last_seen_at = ?
+    WHERE code = ?
+      AND host_id != ?
+      AND status IN ('waiting','playing')
+      AND (guest_id IS NULL OR guest_id = ?)`)
+    .bind(user.userId, now, code, user.userId, user.userId).run();
+  if ((result.meta.changes ?? 0) !== 1) {
+    const room = await d1.prepare('SELECT host_id, guest_id, status FROM rooms WHERE code = ?').bind(code).first<Record<string, unknown>>();
+    if (!room || room.status === 'closed' || room.status === 'terminated') throw new Error('Sala indisponível.');
+    if (String(room.host_id) === user.userId) throw new Error('Você não pode enfrentar a própria conta.');
+    throw new Error('A sala já está completa.');
+  }
 }
 
 export async function findAutomaticMatch(user: ChatGPTUser): Promise<{ roomCode: string; role: 'guest' } | null> {
@@ -207,14 +224,17 @@ export async function findAutomaticMatch(user: ChatGPTUser): Promise<{ roomCode:
   if (profile.bannedUntil && profile.bannedUntil > Date.now()) throw new Error('Sua conta está temporariamente suspensa.');
   const d1 = getD1();
   const now = Date.now();
+  const staleBefore = now - 90_000;
+  await d1.prepare("UPDATE rooms SET status = 'closed', matchmaking = 0 WHERE matchmaking = 1 AND status = 'waiting' AND last_seen_at <= ?").bind(staleBefore).run();
   const candidates = await d1.prepare(
     `SELECT code FROM rooms WHERE matchmaking = 1 AND status = 'waiting' AND guest_id IS NULL AND host_id != ? AND last_seen_at > ? ORDER BY created_at ASC LIMIT 5`,
-  ).bind(user.userId, now - 90_000).all<{ code: string }>();
+  ).bind(user.userId, staleBefore).all<{ code: string }>();
   for (const candidate of candidates.results ?? []) {
     const result = await d1.prepare(
-      `UPDATE rooms SET guest_id = ?, status = 'playing', last_seen_at = ? WHERE code = ? AND guest_id IS NULL AND status = 'waiting'`,
-    ).bind(user.userId, now, candidate.code).run();
-    if ((result.meta.changes ?? 0) > 0) return { roomCode: candidate.code, role: 'guest' };
+      `UPDATE rooms SET guest_id = ?, status = 'playing', matchmaking = 0, last_seen_at = ?
+       WHERE code = ? AND matchmaking = 1 AND guest_id IS NULL AND status = 'waiting' AND host_id != ? AND last_seen_at > ?`,
+    ).bind(user.userId, now, candidate.code, user.userId, staleBefore).run();
+    if ((result.meta.changes ?? 0) === 1) return { roomCode: candidate.code, role: 'guest' };
   }
   return null;
 }
@@ -222,7 +242,7 @@ export async function findAutomaticMatch(user: ChatGPTUser): Promise<{ roomCode:
 export async function closeRoom(userId: string, code: string): Promise<void> {
   await ensureSchema();
   await getD1().prepare(
-    `UPDATE rooms SET status = 'closed', last_seen_at = ? WHERE code = ? AND (host_id = ? OR guest_id = ?)`,
+    `UPDATE rooms SET status = 'closed', matchmaking = 0, last_seen_at = ? WHERE code = ? AND (host_id = ? OR guest_id = ?)`,
   ).bind(Date.now(), code, userId, userId).run();
 }
 
@@ -286,7 +306,7 @@ export async function submitMatchReport(user: ChatGPTUser, input: { roomCode: st
       .bind(whiteAfter, whiteAfter, whiteWon ? 1 : 0, draw ? 1 : 0, !whiteWon && !draw ? 1 : 0, whiteWon ? Number(white.win_streak) + 1 : 0, whiteWon ? Number(white.win_streak) + 1 : 0, whiteWon ? 120 : draw ? 80 : 50, whiteWon ? 60 : draw ? 35 : 20, whiteWon ? 120 : draw ? 80 : 50, now, whiteId),
     d1.prepare(`UPDATE profiles SET rating = ?, peak_rating = MAX(peak_rating, ?), games = games + 1, wins = wins + ?, draws = draws + ?, losses = losses + ?, win_streak = ?, longest_streak = MAX(longest_streak, ?), xp = xp + ?, coins = coins + ?, level = 1 + CAST((xp + ?) / 500 AS INTEGER), updated_at = ? WHERE user_id = ?`)
       .bind(blackAfter, blackAfter, blackWon ? 1 : 0, draw ? 1 : 0, !blackWon && !draw ? 1 : 0, blackWon ? Number(black.win_streak) + 1 : 0, blackWon ? Number(black.win_streak) + 1 : 0, blackWon ? 120 : draw ? 80 : 50, blackWon ? 60 : draw ? 35 : 20, blackWon ? 120 : draw ? 80 : 50, now, blackId),
-    d1.prepare(`UPDATE rooms SET status = 'closed', last_seen_at = ? WHERE code = ?`).bind(now, input.roomCode),
+    d1.prepare(`UPDATE rooms SET status = 'closed', matchmaking = 0, last_seen_at = ? WHERE code = ?`).bind(now, input.roomCode),
   ]);
   return { confirmed: true };
 }
