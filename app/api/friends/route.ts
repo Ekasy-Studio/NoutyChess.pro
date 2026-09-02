@@ -6,28 +6,80 @@ import { getOrCreateProfile } from '@/lib/competitive';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+function normalizePlayerQuery(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  return value
+    .replace(/[<>\u0000-\u001f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 24);
+}
+
+export async function GET(request: Request) {
   const user = await getChatGPTUser();
-  if (!user) return NextResponse.json({ authenticated: false, friends: [], requests: [], invites: [] });
+  if (!user) return NextResponse.json({ authenticated: false, friends: [], requests: [], sent: [], invites: [], search: [] });
   try {
     await ensureSchema();
     await getOrCreateProfile(user);
     const d1 = getD1();
     const now = Date.now();
+    const url = new URL(request.url);
+    const query = normalizePlayerQuery(url.searchParams.get('q'));
+
     const [friends, requests, sent, invites] = await Promise.all([
-      d1.prepare(`SELECT f.pair_key, p.user_id, p.display_name, p.avatar_emote, p.rating
-        FROM friendships f JOIN profiles p ON p.user_id = CASE WHEN f.user_a = ? THEN f.user_b ELSE f.user_a END
-        WHERE (f.user_a = ? OR f.user_b = ?) AND f.status = 'accepted' ORDER BY p.display_name`).bind(user.userId, user.userId, user.userId).all(),
+      d1.prepare(`SELECT f.pair_key, p.user_id, p.display_name, p.avatar_emote, p.rating,
+          CASE WHEN pp.last_seen_at > ? THEN 1 ELSE 0 END AS online,
+          pp.mode AS presence_mode
+        FROM friendships f
+        JOIN profiles p ON p.user_id = CASE WHEN f.user_a = ? THEN f.user_b ELSE f.user_a END
+        LEFT JOIN player_presence pp ON pp.user_id = p.user_id
+        WHERE (f.user_a = ? OR f.user_b = ?) AND f.status = 'accepted'
+        GROUP BY f.pair_key, p.user_id
+        ORDER BY p.display_name`).bind(now - 45_000, user.userId, user.userId, user.userId).all(),
       d1.prepare(`SELECT f.pair_key, p.user_id, p.display_name, p.avatar_emote, p.rating
         FROM friendships f JOIN profiles p ON p.user_id = f.requested_by
         WHERE (f.user_a = ? OR f.user_b = ?) AND f.status = 'pending' AND f.requested_by != ?`).bind(user.userId, user.userId, user.userId).all(),
-      d1.prepare(`SELECT f.pair_key, p.display_name FROM friendships f JOIN profiles p ON p.user_id = CASE WHEN f.user_a = ? THEN f.user_b ELSE f.user_a END
+      d1.prepare(`SELECT f.pair_key, p.user_id, p.display_name, p.avatar_emote, p.rating
+        FROM friendships f JOIN profiles p ON p.user_id = CASE WHEN f.user_a = ? THEN f.user_b ELSE f.user_a END
         WHERE (f.user_a = ? OR f.user_b = ?) AND f.status = 'pending' AND f.requested_by = ?`).bind(user.userId, user.userId, user.userId, user.userId).all(),
       d1.prepare(`SELECT i.id, i.room_code, i.expires_at, p.display_name, p.avatar_emote
         FROM friend_invites i JOIN profiles p ON p.user_id = i.sender_id
         WHERE i.recipient_id = ? AND i.status = 'pending' AND i.expires_at > ? ORDER BY i.created_at DESC`).bind(user.userId, now).all(),
     ]);
-    return NextResponse.json({ authenticated: true, friends: friends.results, requests: requests.results, sent: sent.results, invites: invites.results });
+
+    let search: unknown[] = [];
+    if (query.length >= 2) {
+      const escaped = query.replace(/[%_]/g, (character) => `\\${character}`);
+      const results = await d1.prepare(`SELECT p.user_id, p.display_name, p.avatar_emote, p.rating,
+          CASE WHEN pp.last_seen_at > ? THEN 1 ELSE 0 END AS online,
+          pp.mode AS presence_mode,
+          f.status AS friendship_status,
+          f.requested_by
+        FROM profiles p
+        LEFT JOIN player_presence pp ON pp.user_id = p.user_id
+        LEFT JOIN friendships f ON f.pair_key = CASE
+          WHEN ? < p.user_id THEN ? || ':' || p.user_id
+          ELSE p.user_id || ':' || ?
+        END
+        WHERE p.user_id != ?
+          AND p.display_name LIKE ? ESCAPE '\\' COLLATE NOCASE
+        GROUP BY p.user_id
+        ORDER BY CASE WHEN p.display_name = ? COLLATE NOCASE THEN 0 ELSE 1 END,
+          p.display_name COLLATE NOCASE
+        LIMIT 12`)
+        .bind(now - 45_000, user.userId, user.userId, user.userId, user.userId, `%${escaped}%`, query)
+        .all();
+      search = results.results ?? [];
+    }
+
+    return NextResponse.json({
+      authenticated: true,
+      friends: friends.results,
+      requests: requests.results,
+      sent: sent.results,
+      invites: invites.results,
+      search,
+    });
   } catch {
     return NextResponse.json({ error: 'Não foi possível carregar seus amigos.' }, { status: 500 });
   }
@@ -45,17 +97,26 @@ export async function POST(request: Request) {
     const now = Date.now();
 
     if (action === 'request') {
-      const friendName = typeof body.friendName === 'string' ? body.friendName.replace(/[<>\u0000-\u001f]/g, '').trim().slice(0, 24) : '';
-      const friend = await d1.prepare('SELECT user_id FROM profiles WHERE display_name = ? COLLATE NOCASE LIMIT 1').bind(friendName).first<{ user_id: string }>();
+      const friendId = typeof body.friendId === 'string' ? body.friendId.slice(0, 200) : '';
+      const friendName = normalizePlayerQuery(body.friendName);
+      const friend = friendId
+        ? await d1.prepare('SELECT user_id FROM profiles WHERE user_id = ? LIMIT 1').bind(friendId).first<{ user_id: string }>()
+        : friendName
+          ? await d1.prepare('SELECT user_id FROM profiles WHERE display_name = ? COLLATE NOCASE LIMIT 1').bind(friendName).first<{ user_id: string }>()
+          : null;
       if (!friend || friend.user_id === user.userId) throw new Error('Jogador não encontrado.');
       const [userA, userB] = [user.userId, friend.user_id].sort((a, b) => a.localeCompare(b));
       const pairKey = `${userA}:${userB}`;
-      const existing = await d1.prepare('SELECT status FROM friendships WHERE pair_key = ?').bind(pairKey).first<{ status: string }>();
+      const existing = await d1.prepare('SELECT status, requested_by FROM friendships WHERE pair_key = ?').bind(pairKey).first<{ status: string; requested_by: string }>();
       if (existing?.status === 'blocked') throw new Error('Não é possível enviar solicitação para este jogador.');
+      if (existing?.status === 'accepted') return NextResponse.json({ ok: true, status: 'accepted' });
+      if (existing?.status === 'pending' && existing.requested_by === user.userId) return NextResponse.json({ ok: true, status: 'pending' });
       await d1.prepare(`INSERT INTO friendships (pair_key, user_a, user_b, requested_by, status, created_at, updated_at) VALUES (?, ?, ?, ?, 'pending', ?, ?)
         ON CONFLICT(pair_key) DO UPDATE SET requested_by = excluded.requested_by, status = 'pending', updated_at = excluded.updated_at WHERE friendships.status != 'accepted'`)
         .bind(pairKey, userA, userB, user.userId, now, now).run();
-      return NextResponse.json({ ok: true });
+      const persisted = await d1.prepare('SELECT pair_key, status, requested_by FROM friendships WHERE pair_key = ?').bind(pairKey).first();
+      if (!persisted) throw new Error('Não foi possível salvar a solicitação.');
+      return NextResponse.json({ ok: true, status: 'pending', friendship: persisted });
     }
 
     if (action === 'accept' || action === 'remove') {
@@ -64,7 +125,8 @@ export async function POST(request: Request) {
       if (!friendship || (friendship.user_a !== user.userId && friendship.user_b !== user.userId)) throw new Error('Amizade inválida.');
       if (action === 'accept') {
         if (friendship.requested_by === user.userId || friendship.status !== 'pending') throw new Error('Solicitação inválida.');
-        await d1.prepare("UPDATE friendships SET status = 'accepted', updated_at = ? WHERE pair_key = ?").bind(now, pairKey).run();
+        const result = await d1.prepare("UPDATE friendships SET status = 'accepted', updated_at = ? WHERE pair_key = ? AND status = 'pending'").bind(now, pairKey).run();
+        if ((result.meta.changes ?? 0) !== 1) throw new Error('Não foi possível aceitar a solicitação.');
       } else {
         await d1.prepare('DELETE FROM friendships WHERE pair_key = ?').bind(pairKey).run();
       }
