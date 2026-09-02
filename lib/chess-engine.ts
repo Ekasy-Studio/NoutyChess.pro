@@ -11,7 +11,7 @@ export type NetworkMove = {
   type: 'move';
   from: Square;
   to: Square;
-  promotion?: 'q' | 'r' | 'b' | 'n';
+  promotion?: 'q' | 'r' | 'b' | 'n' | null;
   ply: number;
   previousPosition: string;
 };
@@ -71,7 +71,9 @@ export function isNetworkMove(value: unknown): value is NetworkMove {
     && SQUARE_PATTERN.test(candidate.from)
     && typeof candidate.to === 'string'
     && SQUARE_PATTERN.test(candidate.to)
-    && (candidate.promotion === undefined || (typeof candidate.promotion === 'string' && PROMOTION_PATTERN.test(candidate.promotion)))
+    && (candidate.promotion === undefined
+      || candidate.promotion === null
+      || (typeof candidate.promotion === 'string' && PROMOTION_PATTERN.test(candidate.promotion)))
     && Number.isInteger(candidate.ply)
     && Number(candidate.ply) > 0
     && typeof candidate.previousPosition === 'string'
@@ -89,7 +91,7 @@ export function applyValidatedNetworkMove(
   if (payload.previousPosition !== positionKey(chess)) return { ok: false, reason: 'Posição da partida dessincronizada.' };
 
   try {
-    const move = chess.move({ from: payload.from, to: payload.to, promotion: payload.promotion });
+    const move = chess.move({ from: payload.from, to: payload.to, promotion: payload.promotion ?? undefined });
     if (!move || move.color !== remoteColor) return { ok: false, reason: 'Movimento ilegal.' };
     return { ok: true, move };
   } catch {
