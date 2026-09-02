@@ -6,14 +6,59 @@ import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 
+function legacyCopy(text: string): boolean {
+  if (typeof document === 'undefined') return false;
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.setAttribute('readonly', '');
+  textarea.style.position = 'fixed';
+  textarea.style.opacity = '0';
+  textarea.style.pointerEvents = 'none';
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+  textarea.setSelectionRange(0, text.length);
+  let copied = false;
+  try {
+    copied = document.execCommand('copy');
+  } catch {
+    copied = false;
+  } finally {
+    document.body.removeChild(textarea);
+  }
+  return copied;
+}
+
 export function SupportPage({ pixKey }: { pixKey: string }) {
   const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState('');
+
   const copy = async () => {
     if (!pixKey) return;
-    await navigator.clipboard.writeText(pixKey).catch(() => undefined);
+    setCopied(false);
+    setCopyError('');
+
+    let success = false;
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText && window.isSecureContext) {
+      try {
+        await navigator.clipboard.writeText(pixKey);
+        success = true;
+      } catch {
+        success = false;
+      }
+    }
+
+    if (!success) success = legacyCopy(pixKey);
+
+    if (!success) {
+      setCopyError('Não foi possível copiar automaticamente. Toque e segure a chave para copiá-la.');
+      return;
+    }
+
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1800);
   };
+
   return (
     <main className="support-page">
       <header className="support-header">
@@ -34,9 +79,10 @@ export function SupportPage({ pixKey }: { pixKey: string }) {
           <div className="pix-mark">PIX</div>
           {pixKey ? (
             <>
-              <small>Chave aleatória</small>
+              <small>Chave Pix</small>
               <strong>{pixKey}</strong>
               <Button onClick={() => void copy()}>{copied ? <Check /> : <Copy />}{copied ? 'Chave copiada' : 'Copiar chave Pix'}</Button>
+              {copyError && <p className="network-error" role="alert">{copyError}</p>}
             </>
           ) : (
             <div className="pix-coming-soon"><strong>Em breve</strong><p>A chave Pix será disponibilizada pelo estúdio.</p></div>
