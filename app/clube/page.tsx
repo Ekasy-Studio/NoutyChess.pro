@@ -10,7 +10,8 @@ export default async function ClubPage() {
   try {
     if (user) {
       const profile = await getOrCreateProfile(user);
-      membership = { active: profile.membershipTier === 'legend', until: profile.memberUntil, name: profile.displayName };
+      const active = profile.membershipTier === 'legend' && Boolean(profile.memberUntil && profile.memberUntil > Date.now());
+      membership = { active, until: profile.memberUntil, name: profile.displayName };
     }
   } catch {
     // The public Club presentation remains available while persistence recovers.
