@@ -41,7 +41,7 @@ export function AdminDashboard({ adminName }: { adminName: string }) {
   const [days, setDays] = useState('7');
   const [muteMinutes, setMuteMinutes] = useState('60');
   const [memberDays, setMemberDays] = useState('30');
-  const [cosmeticCode, setCosmeticCode] = useState('board:midnight');
+  const [cosmeticCode, setCosmeticCode] = useState('board:ocean');
   const [pixKey, setPixKey] = useState('');
   const [pixDirty, setPixDirty] = useState(false);
   const [rewardCoins, setRewardCoins] = useState('100');
@@ -184,7 +184,7 @@ export function AdminDashboard({ adminName }: { adminName: string }) {
                       <label>Dias de suspensão<input value={days} onChange={(event) => setDays(event.target.value)} inputMode="numeric" /></label>
                       <label>Minutos sem chat<input value={muteMinutes} onChange={(event) => setMuteMinutes(event.target.value)} inputMode="numeric" /></label>
                       <label>Dias de Clube<input value={memberDays} onChange={(event) => setMemberDays(event.target.value)} inputMode="numeric" /></label>
-                      <label>Cosmético<select value={cosmeticCode} onChange={(event) => setCosmeticCode(event.target.value)}><option value="board:midnight">Tabuleiro Meia-noite</option><option value="board:ocean">Tabuleiro Oceano</option><option value="board:royal">Tabuleiro Realeza</option><option value="board:obsidian">Tabuleiro Obsidiana</option><option value="pieces:neo">Peças Neo</option><option value="pieces:royal">Peças Dourado real</option></select></label>
+                      <label>Cosmético<select value={cosmeticCode} onChange={(event) => setCosmeticCode(event.target.value)}><option value="board:ocean">Tabuleiro Oceano</option><option value="board:royal">Tabuleiro Realeza</option><option value="board:obsidian">Tabuleiro Obsidiana</option><option value="pieces:neo">Peças Neo</option><option value="pieces:royal">Peças Dourado real</option></select></label>
                       <div className="admin-reward-box"><strong><Award /> Recompensa / presente</strong><label>Moedas<input value={rewardCoins} onChange={(event) => setRewardCoins(event.target.value)} inputMode="numeric" /></label><label>XP<input value={rewardXp} onChange={(event) => setRewardXp(event.target.value)} inputMode="numeric" /></label><label>Insígnia<select value={badge} onChange={(event) => setBadge(event.target.value)}><option value="">Sem insígnia</option><option value="fundador">Fundador</option><option value="fair-play">Fair Play</option><option value="campeao-evento">Campeão de evento</option><option value="apoiador-ekasy">Apoiador Ekasy-Studio</option><option value="lenda-comunidade">Lenda da comunidade</option></select></label></div>
                       <label>Motivo<textarea value={reason} onChange={(event) => setReason(event.target.value.slice(0, 240))} maxLength={240} placeholder="Por que esta ação está sendo feita?" /></label>
                       <div className="admin-editor-actions">
@@ -217,9 +217,9 @@ export function AdminDashboard({ adminName }: { adminName: string }) {
                     <tr key={String(request.user_id)}>
                       <td><strong>{String(request.avatar_emote)} {String(request.display_name)}</strong></td>
                       <td>{String(request.rating)}</td><td>{String(request.level)}</td><td>{formatDate(request.updated_at)}</td>
-                      <td><div className="admin-inline-actions">
-                        <Button size="xs" onClick={() => { const why = promptReason('Motivo da aprovação:'); if (why) void act({ action: 'review-membership', userId: request.user_id, decision: 'approve', days: Number(memberDays) }, why); }}><Crown /> Aprovar {memberDays}d</Button>
-                        <Button size="xs" variant="destructive" onClick={() => { const why = promptReason('Motivo da recusa:'); if (why) void act({ action: 'review-membership', userId: request.user_id, decision: 'decline' }, why); }}>Recusar</Button>
+                      <td><div className="admin-inline-actions" role="group" aria-label={`Ações da solicitação de ${String(request.display_name)}`}>
+                        <Button size="xs" aria-label={`Aprovar Clube de ${String(request.display_name)} por ${memberDays} dias`} onClick={() => { const why = promptReason('Motivo da aprovação:'); if (why) void act({ action: 'review-membership', userId: request.user_id, decision: 'approve', days: Number(memberDays) }, why); }}><Crown /> Aprovar {memberDays}d</Button>
+                        <Button size="xs" variant="destructive" aria-label={`Recusar Clube de ${String(request.display_name)}`} onClick={() => { const why = promptReason('Motivo da recusa:'); if (why) void act({ action: 'review-membership', userId: request.user_id, decision: 'decline' }, why); }}>Recusar</Button>
                       </div></td>
                     </tr>
                   ))}</tbody>
@@ -229,12 +229,12 @@ export function AdminDashboard({ adminName }: { adminName: string }) {
 
             {tab === 'rooms' && <AdminTable headers={['Sala', 'Host', 'Convidado', 'Status', 'Fila', 'Último sinal', 'Ação']} rows={(data?.rooms ?? []).map((room) => [
               String(room.code), String(room.host_id).slice(0, 12), room.guest_id ? String(room.guest_id).slice(0, 12) : '—', String(room.status), Number(room.matchmaking) === 1 ? 'Rápida' : 'Privada', formatDate(room.last_seen_at),
-              <Button key="terminate" size="sm" variant="destructive" onClick={() => { const why = promptReason('Motivo para encerrar a sala:'); if (why) void act({ action: 'terminate-room', roomCode: room.code }, why); }}><DoorClosed /> Encerrar</Button>,
+              <Button key="terminate" size="sm" variant="destructive" aria-label={`Encerrar sala ${String(room.code)}`} onClick={() => { const why = promptReason('Motivo para encerrar a sala:'); if (why) void act({ action: 'terminate-room', roomCode: room.code }, why); }}><DoorClosed /> Encerrar</Button>,
             ])} />}
 
             {tab === 'games' && <AdminTable headers={['ID', 'Sala', 'Brancas', 'Pretas', 'Resultado', 'Elo final', 'Data']} rows={(data?.games ?? []).map((game) => [String(game.id).slice(0, 10), String(game.room_code ?? '—'), String(game.white_id).slice(0, 10), String(game.black_id).slice(0, 10), String(game.result), `${String(game.white_rating_after)} / ${String(game.black_rating_after)}`, formatDate(game.finished_at)])} />}
 
-            {tab === 'chat' && <AdminTable headers={['#', 'Tipo', 'Jogador', 'Mensagem', 'Sala', 'Data', 'Ações']} rows={(data?.chat ?? []).map((message) => [String(message.id), message.scope === 'room' ? 'Sala' : 'Comunidade', `${String(message.avatar_emote)} ${String(message.display_name)}`, message.deleted_at ? '[removida]' : String(message.message), String(message.room_code ?? '—'), formatDate(message.created_at), <div className="admin-inline-actions" key="actions"><Button size="xs" variant="destructive" disabled={Boolean(message.deleted_at)} onClick={() => { const why = promptReason('Motivo para remover a mensagem:'); if (why) void act({ action: 'delete-chat-message', messageId: message.id }, why); }}><Ban /> Remover</Button><Button size="xs" variant="secondary" onClick={() => { const why = promptReason('Motivo para silenciar este jogador:'); if (why) void act({ action: 'mute-chat', userId: message.user_id, minutes: 60 }, why); }}><MessageCircle /> Silenciar 1h</Button></div>])} />}
+            {tab === 'chat' && <AdminTable headers={['#', 'Tipo', 'Jogador', 'Mensagem', 'Sala', 'Data', 'Ações']} rows={(data?.chat ?? []).map((message) => [String(message.id), message.scope === 'room' ? 'Sala' : 'Comunidade', `${String(message.avatar_emote)} ${String(message.display_name)}`, message.deleted_at ? '[removida]' : String(message.message), String(message.room_code ?? '—'), formatDate(message.created_at), <div className="admin-inline-actions" role="group" aria-label={`Moderação de ${String(message.display_name)}`} key="actions"><Button size="xs" variant="destructive" disabled={Boolean(message.deleted_at)} onClick={() => { const why = promptReason('Motivo para remover a mensagem:'); if (why) void act({ action: 'delete-chat-message', messageId: message.id }, why); }}><Ban /> Remover</Button><Button size="xs" variant="secondary" onClick={() => { const why = promptReason('Motivo para silenciar este jogador:'); if (why) void act({ action: 'mute-chat', userId: message.user_id, minutes: 60 }, why); }}><MessageCircle /> Silenciar 1h</Button></div>])} />}
 
             {tab === 'settings' && <div className="admin-settings-card"><span><Settings /></span><div><small>APOIE A EKASY</small><h2>Chave Pix pública</h2><p>A chave só é considerada salva depois de ser confirmada novamente no D1.</p><label>Chave Pix<input value={pixKey} onChange={(event) => { setPixKey(event.target.value.slice(0, 140)); setPixDirty(true); }} maxLength={140} /></label><label>Motivo da alteração<textarea value={reason} onChange={(event) => setReason(event.target.value.slice(0, 240))} maxLength={240} /></label><Button onClick={() => void act({ action: 'update-pix', pixKey })} disabled={!pixDirty}><Save /> Salvar configuração</Button></div></div>}
 
