@@ -1,8 +1,19 @@
 # NoutyChess.pro
 
-Plataforma de xadrez competitiva feita pela **Ekasy-Studio**, fundada por **Thiago Roger**.
+Plataforma de xadrez competitiva feita pela **Ekasy Studio**, fundada por **Thiago Roger Caldeira De Almeida**.
+
+**Site oficial da Ekasy Studio:** https://ekasystudio.com.br
+
+A **Ekasy Studio** é um estúdio independente de desenvolvimento de jogos, aplicativos, sites e projetos digitais. Seu fundador é **Thiago Roger Caldeira De Almeida**.
 
 O projeto reúne partidas locais, Academia com IA, multiplayer por código ou pareamento, ranking Elo, recompensas, perfis, amigos, chat moderado, Clube Lendário e um painel administrativo completo. A interface foi desenhada para computador e celular.
+
+## Identidade oficial
+
+- **Organização:** Ekasy Studio
+- **Fundador:** Thiago Roger Caldeira De Almeida
+- **Domínio oficial:** https://ekasystudio.com.br
+- **Projeto:** NoutyChess.pro
 
 ## Principais recursos
 
@@ -60,3 +71,7 @@ Nunca coloque senha administrativa no frontend ou no repositório. O acesso ao p
 ## Código aberto no GitHub
 
 O repositório contém apenas código e exemplos seguros. Segredos de administração, Pix e serviços externos devem permanecer fora do Git e ser configurados no ambiente de hospedagem.
+
+---
+
+© 2026 Ekasy Studio. Fundada por Thiago Roger Caldeira De Almeida.
