@@ -142,6 +142,20 @@ describe('movimentos recebidos pela rede', () => {
     expect(chess.get('e4')).toMatchObject({ type: 'p', color: 'w' });
   });
 
+  it('aceita promotion nula recebida pela serialização binária do PeerJS', () => {
+    const chess = new Chess();
+    const payload: NetworkMove = {
+      type: 'move',
+      from: 'e2',
+      to: 'e4',
+      promotion: null,
+      ply: 1,
+      previousPosition: positionKey(chess),
+    };
+    expect(applyValidatedNetworkMove(chess, payload, 'w').ok).toBe(true);
+    expect(chess.get('e4')).toMatchObject({ type: 'p', color: 'w' });
+  });
+
   it('rejeita formato, turno, histórico, dessincronização e ilegalidade', () => {
     const chess = new Chess();
     expect(applyValidatedNetworkMove(chess, { type: 'move', from: '<script>', to: 'e4' }, 'w').ok).toBe(false);
