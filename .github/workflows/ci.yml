@@ -31,7 +31,7 @@ jobs:
         run: npm test
 
       - name: Lint
-        run: npm run lint
+        run: npx oxlint --format unix
 
       - name: Production build
         run: npm run build
