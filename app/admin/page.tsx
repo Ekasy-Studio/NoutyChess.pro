@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { ShieldAlert, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 
@@ -6,6 +7,10 @@ import { AdminAccessError, requireAdmin } from '@/lib/admin-auth';
 import { AdminDashboard } from './admin-dashboard';
 
 export const dynamic = 'force-dynamic';
+export const metadata: Metadata = {
+  title: 'Área restrita | NoutyChess.pro',
+  robots: { index: false, follow: false, noarchive: true, nocache: true },
+};
 
 export default async function AdminPage() {
   const user = await getChatGPTUser();
@@ -14,9 +19,9 @@ export default async function AdminPage() {
       <main className="admin-access-page">
         <div className="admin-access-card">
           <ShieldCheck />
-          <h1>Administração segura</h1>
-          <p>Entre com sua conta autorizada. Nenhuma senha administrativa é armazenada no navegador.</p>
-          <a href={chatGPTSignInPath('/admin')} target="_top">Entrar com ChatGPT</a>
+          <h1>Área restrita</h1>
+          <p>Entre com uma conta administrativa autorizada.</p>
+          <a href={chatGPTSignInPath('/admin')} target="_top">Entrar</a>
           <Link className="admin-back" href="/">Voltar ao jogo</Link>
         </div>
       </main>
@@ -33,7 +38,6 @@ export default async function AdminPage() {
           <ShieldAlert />
           <h1>Acesso não autorizado</h1>
           <p>{message}</p>
-          <small>Conta conectada: {user.email}</small>
           <Link className="admin-back" href="/">Voltar ao jogo</Link>
         </div>
       </main>
