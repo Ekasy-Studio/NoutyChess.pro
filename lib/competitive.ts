@@ -108,8 +108,9 @@ export async function getOrCreateProfile(user: ChatGPTUser): Promise<Competitive
 
 const ALLOWED_EMOTES = new Set(['♘', '♛', '♜', '♝', '♚', '⚔️', '🦁', '🐉', '🦉', '🔥', '⚡', '💎']);
 const ALLOWED_TITLES = new Set(['Desafiante', 'Estrategista', 'Caçador de reis', 'Mestre tático', 'Guardião do centro', 'Lenda da arena']);
+const FREE_BOARDS = new Set(['emerald', 'wood', 'midnight']);
+const FREE_PIECES = new Set(['classic', 'modern', 'minimal']);
 export const COSMETIC_PRICES: Record<string, number> = {
-  'board:midnight': 1_200,
   'board:ocean': 2_000,
   'board:royal': 3_500,
   'board:obsidian': 4_800,
@@ -127,14 +128,14 @@ export async function updatePublicProfile(user: ChatGPTUser, input: { displayNam
   if (displayName.length < 2) throw new Error('O nome precisa ter pelo menos 2 caracteres.');
   if (!ALLOWED_EMOTES.has(input.avatarEmote)) throw new Error('Emote de perfil inválido.');
   if (!ALLOWED_TITLES.has(input.profileTitle)) throw new Error('Título de perfil inválido.');
-  const boardOptions = new Set(['emerald', 'midnight', 'royal', 'ocean', 'obsidian', 'aurora']);
-  const pieceOptions = new Set(['classic', 'neo', 'royal', 'prisma']);
+  const boardOptions = new Set([...FREE_BOARDS, 'royal', 'ocean', 'obsidian', 'aurora']);
+  const pieceOptions = new Set([...FREE_PIECES, 'neo', 'royal', 'prisma']);
   if (!boardOptions.has(input.boardTheme) || !pieceOptions.has(input.pieceTheme)) throw new Error('Cosmético inválido.');
   const allowed = new Set(current.unlockedCosmetics);
   if (input.boardTheme === 'aurora' && current.membershipTier !== 'legend') throw new Error('O tabuleiro Aurora é exclusivo do Clube Lendário.');
   if (input.pieceTheme === 'prisma' && current.membershipTier !== 'legend') throw new Error('As peças Prisma são exclusivas do Clube Lendário.');
-  if (input.boardTheme !== 'emerald' && input.boardTheme !== 'aurora' && !allowed.has(`board:${input.boardTheme}`)) throw new Error('Este tabuleiro ainda não foi desbloqueado.');
-  if (input.pieceTheme !== 'classic' && input.pieceTheme !== 'prisma' && !allowed.has(`pieces:${input.pieceTheme}`)) throw new Error('Este conjunto de peças ainda não foi desbloqueado.');
+  if (!FREE_BOARDS.has(input.boardTheme) && input.boardTheme !== 'aurora' && !allowed.has(`board:${input.boardTheme}`)) throw new Error('Este tabuleiro ainda não foi desbloqueado.');
+  if (!FREE_PIECES.has(input.pieceTheme) && input.pieceTheme !== 'prisma' && !allowed.has(`pieces:${input.pieceTheme}`)) throw new Error('Este conjunto de peças ainda não foi desbloqueado.');
   const d1 = getD1();
   const result = await d1.prepare('UPDATE profiles SET display_name = ?, avatar_emote = ?, profile_title = ?, board_theme = ?, piece_theme = ?, updated_at = ? WHERE user_id = ?')
     .bind(displayName, input.avatarEmote, input.profileTitle, input.boardTheme, input.pieceTheme, Date.now(), user.userId).run();
