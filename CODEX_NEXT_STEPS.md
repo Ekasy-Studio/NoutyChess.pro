@@ -1,331 +1,653 @@
-# NoutyChess.pro — Próxima grande atualização
+# NoutyChess.pro — Finalização pelo Codex
 
-Use este arquivo como roteiro oficial. Trabalhe sobre a `main` mais recente e preserve dados, autenticação, `.openai/hosting.json` e o binding D1 `DB`.
+Este arquivo é a instrução oficial para a próxima execução do Codex.
 
-## Arquitetura oficial
+## Regra principal
 
-- Código: `Ekasy-Studio/NoutyChess.pro`
-- Branch: `main`
-- Produção: ChatGPT Sites existente
-- Banco: Cloudflare D1 existente
-- Domínio oficial desejado: `noutychess.pro`
-- Não criar projeto Vercel paralelo.
-- Não criar outro banco ou outro Site.
+NÃO refaça o projeto. Grande parte da atualização já foi implementada diretamente na `main`.
 
-## Trabalho já adiantado
+Trabalhe em `Ekasy-Studio/NoutyChess.pro`, branch `main`, preserve `.openai/hosting.json`, o binding D1 `DB`, autenticação, contas e dados existentes.
 
-- Correção PeerJS para `promotion: null`: commits `4c0a882` e `1267855`. Não regredir.
-- Backend de amigos preparado para busca parcial, status e confirmação de persistência: commit `d717a15`.
-- Cópia de Pix corrigida para não exibir falso sucesso e possuir fallback: commit `078d9b2`.
+Arquitetura final desejada:
 
-## P0 — fazer primeiro
+GitHub privado → ChatGPT Site existente → D1 existente → `https://noutychess.pro`
 
-### 1. Domínio
+Não criar Vercel, outro Site ou outro banco.
 
-Antes do lançamento final, conectar `noutychess.pro` ao Site existente.
+## O que já foi adiantado
 
-1. No ChatGPT Sites, abrir o Site atual e usar Adicionar domínio.
-2. Obter os registros DNS exatos da plataforma.
-3. O proprietário fará login manual no Registro.com.
-4. Conferir DNS existentes antes de alterar.
-5. Não inventar A/CNAME/TXT/nameserver e não apagar MX/SPF/DKIM sem necessidade.
-6. Adicionar somente os registros pedidos pelo Sites.
-7. Verificar domínio e HTTPS.
-8. Usar `noutychess.pro` como domínio principal se a plataforma permitir.
-9. Manter URL gratuita como fallback se possível.
+Já existem na `main`, entre outras mudanças:
 
-### 2. Multiplayer
+- correção PeerJS de `promotion: null`;
+- teste de regressão multiplayer;
+- matchmaking mais seguro;
+- persistência do nome/perfil corrigida;
+- busca parcial de amigos no backend;
+- status de presença;
+- Pix com cópia real/fallback;
+- admin com persistência confirmada no D1;
+- polling administrativo enquanto aba visível;
+- solicitações e validade do Clube;
+- Presentes do Fundador com idempotência/auditoria;
+- notificações persistentes;
+- reforço de autenticação administrativa;
+- licença proprietária;
+- `SECURITY.md`;
+- Termos, Privacidade e Copyright;
+- regras de comunidade/fair play;
+- online em maior destaque;
+- efeitos luminosos nos principais cards;
+- WhatsApp para convite de sala;
+- pelo menos 3 tabuleiros gratuitos;
+- pelo menos 3 conjuntos de peças gratuitos;
+- configurações opcionais durante a partida;
+- guia de iniciante e alertas;
+- onboarding;
+- base estruturada de conhecimento dos professores;
+- endpoint `/api/coach`;
+- chat contextual básico dos professores;
+- `Dica → Orientação → Mostrar lance` nos modos educacionais;
+- CI no GitHub.
 
-Validar duas sessões reais:
+Leia os commits recentes antes de alterar qualquer coisa.
 
-- A joga `e2-e4`, B recebe e pode responder.
-- B joga `e7-e5`, A recebe.
-- Testar captura, roque, promoção, en passant, xeque, mate, empate, desistência, oferta de empate e relógio.
-- Melhorar mensagens de conexão, desconexão e reconexão.
-- Nunca aplicar jogada ilegal.
+---
 
-### 3. Matchmaking
+# P0 — fazer primeiro
 
-Preservar o que já funciona e melhorar:
+## 1. Deixar o CI totalmente verde
 
-- fila clara de Partida rápida;
-- reserva de vaga segura/atômica quando possível;
-- cancelar busca;
+Rode:
+
+- `npm test`
+- `npm run lint`
+- `npm run build`
+
+Os 29 testes existentes já chegaram a passar. O último CI apontou problemas pequenos de lint/JSX que começaram a ser corrigidos.
+
+Continue até testes + lint + build passarem.
+
+Não desative regras do lint para esconder problemas.
+
+## 2. Dependências e segurança
+
+O `npm ci` reportou vulnerabilidades em dependências.
+
+Faça `npm audit` e classifique o que afeta produção.
+
+NÃO use `npm audit fix --force` cegamente.
+
+Atualize somente dependências compatíveis e valide novamente testes/build.
+
+## 3. Admin seguro
+
+Revise `/admin` e `/api/admin`.
+
+Já existem:
+
+- `NOUTY_ADMIN_EMAILS`;
+- suporte opcional a `NOUTY_ADMIN_USER_IDS`;
+- autorização server-side;
+- auditoria;
+- persistência confirmada;
+- noindex/cache privado;
+- rota não divulgada na navegação pública.
+
+Confirme que toda mutação administrativa usa proteção de mesma origem (`requireSameOriginAdminMutation()` ou equivalente).
+
+Nunca confiar apenas em esconder `/admin`.
+
+Validar no servidor:
+
+- Elo;
+- moedas;
+- Clube;
+- presentes;
+- cosméticos;
+- ban/mute;
+- Pix;
+- resultados competitivos.
+
+## 4. GitHub privado
+
+O repositório ainda pode estar público.
+
+ANTES de mudar para Private:
+
+1. confirme que o ChatGPT Site existente continuará tendo acesso/build ao repositório privado;
+2. se confirmado, altere `Ekasy-Studio/NoutyChess.pro` para PRIVATE;
+3. execute um build/preview depois da mudança;
+4. confirme que a integração não quebrou.
+
+Código-fonte completo deve ficar privado.
+
+Entenda que JavaScript enviado ao navegador ainda pode ser inspecionado, então segredos/lógica sensível ficam no servidor.
+
+Não habilitar source maps públicos de produção.
+
+## 5. DOMÍNIO ANTES DO LANÇAMENTO
+
+Quero `https://noutychess.pro` como domínio oficial.
+
+Use o ChatGPT Site EXISTENTE.
+
+No Sites:
+
+Configurações → Adicionar domínio → `noutychess.pro`.
+
+Obtenha exatamente os registros DNS exigidos.
+
+NÃO invente A/CNAME/TXT/nameserver.
+
+O proprietário fará login manualmente no Registro.com.
+
+Antes de alterar DNS:
+
+- registrar configuração atual;
+- preservar MX;
+- preservar SPF;
+- preservar DKIM;
+- preservar e-mail;
+- não trocar nameservers sem necessidade.
+
+Adicionar somente os registros pedidos pelo Sites.
+
+Depois confirmar:
+
+- domínio verificado;
+- HTTPS;
+- certificado;
+- domínio principal;
+- `www.noutychess.pro` redirecionando para raiz, se suportado;
+- login funcionando pelo domínio;
+- APIs funcionando pelo domínio.
+
+---
+
+# P0 — gameplay e social
+
+## 6. Multiplayer real em duas sessões
+
+Teste DUAS sessões/dispositivos.
+
+Obrigatório:
+
+A: `e2-e4`
+
+B recebe e consegue responder.
+
+B: `e7-e5`
+
+A recebe.
+
+Depois testar:
+
+- captura;
+- roque;
+- promoção;
+- en passant;
+- xeque;
+- mate;
+- empate;
+- oferta de empate;
+- desistência;
+- relógio;
+- chat;
+- desconexão;
+- reconexão quando possível;
+- resultado.
+
+Nunca aplicar jogada ilegal.
+
+## 7. Matchmaking
+
+Teste duas sessões em Partida rápida.
+
+Garantir:
+
+- fila clara;
+- adversário encontrado;
+- vaga reservada de forma segura;
+- ninguém enfrenta a própria conta;
+- nenhuma dupla ocupação;
 - heartbeat;
-- limpeza de salas/fila abandonadas;
-- impedir auto-partida e dupla ocupação;
-- mostrar estados reais: procurando, encontrado, conectado.
+- limpeza de salas abandonadas;
+- cancelamento da busca;
+- estados claros na interface.
 
-### 4. Persistência
+## 8. Amigos
 
-Auditar tudo que precisa sobreviver a refresh/logout:
+A API já suporta busca parcial.
 
-- perfil, Elo, XP, moedas;
-- temas e peças;
+Validar UI completa:
+
+- pesquisar parte do nome;
+- debounce;
+- avatar;
+- nome;
+- Elo;
+- presença;
+- adicionar pelo `friendId`;
+- solicitação persistir;
+- recebidas/enviadas;
+- aceitar;
+- recusar/remover;
+- online/em partida/procurando/offline;
+- convidar para sala;
+- aceitar convite;
+- refresh e login novamente sem perder amizade.
+
+## 9. WhatsApp
+
+Validar convite por WhatsApp.
+
+Quando houver sala, mensagem deve conter:
+
+- nome NoutyChess.pro;
+- link `https://noutychess.pro`;
+- código da sala.
+
+Sem sala, compartilhar apenas convite geral ao jogo.
+
+Abrir corretamente em mobile e desktop.
+
+## 10. Social e comunidade
+
+Validar:
+
+- chat;
+- moderação;
+- mute;
+- regras;
+- Termos;
+- Privacidade;
+- Copyright;
+- notificações;
+- amigos;
+- convites;
+- WhatsApp.
+
+---
+
+# P1 — admin, Clube e persistência
+
+## 11. Admin fluido
+
+O painel deve funcionar como central de comando.
+
+Validar:
+
+- jogadores;
+- visitantes;
+- online;
+- procurando partida;
+- salas;
+- partidas atuais/concluídas;
+- chat;
+- amigos;
+- Clube;
+- solicitações;
+- presentes;
+- recompensas;
+- cosméticos;
+- punições;
+- Pix;
+- configurações;
+- auditoria.
+
+Atualização automática leve somente enquanto aba visível.
+
+Após ação:
+
+servidor valida → D1 grava → confirma changes → relê → UI atualiza → mostra sucesso.
+
+Não mostrar sucesso falso.
+
+## 12. Clube Lendário
+
+Fluxo completo:
+
+Jogador solicita → admin vê → aprova/recusa → escolhe duração → Clube ativa → benefícios aparecem.
+
+Só ativo se:
+
+`membership_tier === 'legend'` E `member_until > Date.now()`.
+
+Benefícios apenas cosméticos/sociais.
+
+Nunca pay-to-win.
+
+## 13. Presentes
+
+Validar Presente do Fundador:
+
+- moedas;
+- XP;
+- badge;
+- cosmético;
+- tabuleiro/peças;
+- dias de Clube;
+- pacote combinado.
+
+Precisa:
+
+- notificação persistente;
+- auditoria;
+- idempotência;
+- sobreviver a refresh/login.
+
+## 14. Pix
+
+Teste:
+
+admin salva → D1 confirma → refresh → valor permanece → `/apoie` mostra mesma chave → copiar → colar valor correto.
+
+Nunca exibir “copiado” quando falhar.
+
+## 15. Persistência geral
+
+Auditar:
+
+- nome;
+- avatar;
+- tema;
+- peças;
+- Elo;
+- XP;
+- moedas;
 - amigos;
 - Clube;
 - presentes;
 - Pix;
 - cosméticos;
-- configurações importantes.
+- onboarding;
+- preferências importantes.
 
-Nada persistente deve depender apenas de React state.
+Nada importante pode existir apenas em React state.
 
-### 5. Amigos
+---
 
-O backend de busca parcial já foi preparado. Completar a UI:
+# P1 — layout profissional
 
-- campo de pesquisa por parte do nome usando `/api/friends?q=...`;
-- debounce;
-- resultados com avatar, nome, Elo e presença;
-- adicionar pelo `friendId` retornado;
-- solicitações enviadas/recebidas;
-- aceitar, recusar/remover;
-- persistir e atualizar automaticamente;
-- convidar amigo para sala;
-- online / em partida / procurando / offline quando os dados permitirem.
+## 16. UX principal
 
-### 6. Admin
+O primeiro viewport deve destacar JOGAR ONLINE sem rolagem.
 
-Transformar `/admin` em central de comando fluida:
+Prioridade:
 
-- polling leve enquanto aba visível, reduzido/pausado quando invisível;
-- jogadores, presença, matchmaking, salas, partidas, chat, Clube, presentes, configurações e auditoria;
-- após ação: servidor valida -> grava D1 -> confirma `changes` -> relê dado -> UI atualiza -> mostra sucesso;
-- não mostrar sucesso falso;
-- manter `NOUTY_ADMIN_EMAILS` somente server-side;
-- manter trilha de auditoria.
+1. Jogar Online
+2. Perfil/Elo
+3. Amigos
+4. Ranking
+5. Clube
+6. Academia
+7. Cosméticos
+8. Apoie
 
-## P1 — experiência principal
-
-### 7. Home / navegação
-
-Primeiro viewport deve destacar `JOGAR ONLINE` sem rolagem.
-
-Ações principais:
+Ações Online:
 
 - Partida rápida
 - Criar sala
 - Entrar com código
 - Jogar com amigo
 
-Hierarquia depois disso:
+No mobile, deixar acesso rápido e intuitivo, evitando página interminável.
 
-1. Perfil/Elo
-2. Amigos
-3. Ranking
-4. Clube Lendário
-5. Academia
-6. Cosméticos
-7. Apoie
+Testar ~360/390/412 px.
 
-No mobile considerar barra inferior: Jogar, Amigos, Ranking, Clube, Perfil.
+## 17. Visual premium
 
-### 8. Direção visual
+Manter identidade própria NoutyChess.
 
-Visual competitivo premium com identidade NoutyChess.
+Já existem efeitos luminosos inspirados na página Apoie.
 
-Aproveitar a linguagem luminosa da página Apoie:
+Refinar sem exagero:
 
-- luz de borda e brilho lento em Jogar Online;
-- dourado/reflexo no Clube;
-- azul/violeta analítico na Academia;
-- efeitos por divisão no ranking.
+- Online vivo e atraente;
+- Clube dourado/premium;
+- Academia azul/violeta;
+- Ranking por divisão.
 
-Não usar flashes, excesso de partículas ou animações que atrapalhem o tabuleiro. Respeitar `prefers-reduced-motion` e oferecer animações Normal/Reduzidas/Desativadas.
+Não usar flashes ou animação agressiva.
 
-### 9. Clube Lendário
+Respeitar `prefers-reduced-motion`.
 
-Transformar pré-lançamento em fluxo funcional:
+---
 
-- jogador solicita;
-- solicitação aparece no admin;
-- admin aprova/recusa e escolhe duração;
-- só considerar ativo se `membership_tier === 'legend'` e `member_until > Date.now()`;
-- liberar benefícios automaticamente;
-- benefícios exclusivamente cosméticos/sociais, nunca pay-to-win.
+# P2 — personalização
 
-### 10. Presentes do Fundador
+## 18. Gratuitos
 
-No admin criar fluxo para localizar jogador e conceder, com auditoria e idempotência quando aplicável:
-
-- moedas;
-- XP;
-- insígnias;
-- cosméticos;
-- tabuleiro/peças;
-- dias de Clube;
-- pacote combinado.
-
-Jogador recebe notificação `Presente do Fundador` com itens recebidos.
-
-### 11. Pix
-
-O botão público já foi corrigido. Confirmar também persistência administrativa:
-
-admin salva -> relê D1 -> refresh -> valor permanece -> `/apoie` mostra mesmo valor -> copiar/colar correto.
-
-## P2 — personalização e acabamento
-
-### 12. Gratuitos
-
-Liberar no mínimo 3 tabuleiros gratuitos desde o início:
+Confirmar pelo menos 3 tabuleiros gratuitos:
 
 - Clássico Verde
 - Madeira Nobre
 - Meia-Noite
 
-Liberar no mínimo 3 peças gratuitas:
+E 3 conjuntos gratuitos:
 
 - Clássicas
 - Modernas
 - Minimalistas
 
-Permitir livre combinação e persistir escolha.
+Livre combinação e persistência.
 
-### 13. Premium
+## 19. Premium
 
-Premium deve ser claramente diferente, não simples recoloração. Exemplos:
+Premium precisa ser realmente diferenciado e desejável, não simples recoloração.
+
+Refinar itens existentes como:
 
 - Aurora
 - Obsidiana
 - Realeza
 - Prisma
-- Neon
-- Safira
+- Neo
 
-Mostrar raridade/origem e preview. Categorias possíveis: Grátis, Loja, Clube, Evento, Temporada, Conquista, Presente do Fundador.
+e outros adequados.
 
-### 14. Sons
+Mostrar preview, origem e raridade quando fizer sentido.
 
-Substituir/expandir os tons simples por áudio curto e seguro/original/CC0 para:
+Não copiar assets/código/sons do Chess.com.
 
-- movimento, captura, xeque, roque, promoção;
-- início, adversário encontrado, convite, mensagem;
-- vitória, derrota, empate.
+---
 
-Adicionar liga/desliga e volume persistente. Não copiar sons de Chess.com.
+# P2 — áudio e guias
 
-### 15. Guias e alertas
+## 20. Sons profissionais
 
-Durante a partida permitir ligar/desligar sem sair:
+Completar sons seguros/originais/CC0 para:
 
+- movimento;
+- captura;
+- xeque;
+- roque;
+- promoção;
+- início;
+- adversário encontrado;
+- convite;
+- mensagem;
+- vitória;
+- derrota;
+- empate.
+
+Adicionar controle de volume persistente além do liga/desliga.
+
+## 21. Guias e alertas opcionais
+
+Já existe base de configurações durante a partida.
+
+Validar/refinar:
+
+- casas legais;
 - coordenadas;
 - último lance;
-- casas legais;
-- capturas possíveis;
-- rei em xeque;
+- peças ameaçadas;
+- guia iniciante;
+- alertas;
 - animações;
-- sons/volume;
-- guia de iniciante;
-- alertas visual/sonoro/ambos/desligado.
+- áudio/volume.
 
-Em ranked online nunca mostrar engine, melhor lance, avaliação ou linha calculada. Ajuda competitiva permitida apenas para regras/visual.
+Tudo pode ser ligado/desligado durante a partida.
 
-### 16. Onboarding
+Em partida competitiva online:
 
-Primeiro acesso, uma vez:
+NUNCA mostrar engine, avaliação, melhor lance, tática ou mate calculado.
 
-- Sou iniciante
-- Já sei jogar
-- Personalizar
+---
 
-Salvar conclusão.
+# P2 — Professores Niclaus e Damon
 
-## Professores IA
+## 22. Não refazer a base
 
-Transformar Niclaus e Damon em professores reais, sem comprometer P0.
+Já existem:
 
-Arquitetura desejada:
+- `lib/chess-knowledge.ts`;
+- `/api/coach`;
+- repertório de aberturas;
+- regras;
+- tática;
+- estratégia;
+- finais;
+- chat contextual com FEN/histórico;
+- `Pista → Orientação → Sugerir lance`.
 
-1. Engine/chess.js para verdade objetiva da posição.
-2. Base de conhecimento para regras, aberturas, tática, estratégia e finais.
-3. Camada conversacional para explicar em linguagem humana.
+Evolua isso.
 
-Niclaus: calmo, técnico, estratégico e didático.
-Damon: direto, provocador, divertido e agressivo sem insultar.
+## 23. IA conversacional avançada
 
-Recursos educacionais:
+Adicionar, se infraestrutura disponível:
 
-- chat contextual usando FEN e histórico relevante;
+- streaming;
+- resposta em tempo real;
+- personalidade consistente;
+- contexto da partida;
 - explicar a própria jogada;
-- `Dica` -> `Orientação` -> `Mostrar lance`;
-- narrar jogadas/TTS opcional;
-- pós-partida: acertos, erro principal, momento crítico, conceito e próxima aula;
-- memória apenas da sessão e, se implementado, progresso educacional não sensível.
+- memória da sessão;
+- adaptação iniciante/intermediário/avançado;
+- análise pós-partida;
+- exercícios baseados nos erros do jogador;
+- progresso educacional não sensível.
 
-Sugestão de jogada e engine somente em Academia/Treino/IA/análise pós-partida. Nunca em online competitivo.
+Niclaus:
+calmo, técnico, estratégico, paciente e didático.
 
-Se serviço de IA estiver indisponível, jogo, engine local, regras e dicas básicas continuam funcionando.
+Damon:
+direto, provocador, divertido e agressivo sem insultar.
 
-## Segurança
+## 24. Voz e narração
 
-- Todas ações sensíveis validadas server-side.
-- Usuário comum não altera Elo/moedas/Clube arbitrariamente.
-- Secrets nunca no frontend/GitHub.
-- Admin protegido por `NOUTY_ADMIN_EMAILS`.
-- Não registrar tokens/secrets nos logs.
+Adicionar TTS opcional:
 
-## Performance
+- narrar jogadas;
+- professor falar explicações curtas;
+- volume;
+- ligar/desligar.
 
-- Evitar polling agressivo, requests duplicados e renders desnecessários.
-- Pausar/reduzir atualização automática quando aba invisível.
-- Não bloquear tabuleiro esperando IA ou rede secundária.
+Nunca bloquear partida esperando voz/IA.
 
-## Testes mínimos obrigatórios
+## 25. Fair play
 
-1. Login/logout.
-2. Perfil salva e persiste.
-3. Sala privada em duas sessões: e4/e5 e outros lances.
-4. Matchmaking entre duas sessões.
-5. Chat bidirecional.
-6. Busca parcial de amigo, request, aceite e persistência.
-7. Convite de amigo.
-8. Solicitação/aprovação/expiração do Clube.
-9. Presente do admin e persistência.
-10. Pix salvar, recarregar, copiar e colar.
-11. Admin refletir presença/sala sem reload manual.
-12. Temas/peças e preferências persistirem.
-13. Desktop e mobile ~360/390/412px.
+Sugestões e engine somente em:
 
-Rodar testes, lint, TypeScript e build disponíveis no projeto.
+- Academia;
+- Treino;
+- contra professor/IA;
+- análise pós-partida.
 
-## Publicação
+Nunca ranked/online competitivo.
 
-Depois dos testes:
+Se IA avançada falhar, jogo e professor local continuam funcionando.
 
-1. commits claros na `main`;
-2. gerar/revisar preview no Site EXISTENTE;
-3. não criar produção paralela;
-4. publicar a versão aprovada;
-5. testar pelo domínio real `noutychess.pro`:
-   - `/`
-   - `/admin`
-   - `/clube`
-   - `/apoie`
-   - login
-   - multiplayer
-   - matchmaking
-   - amigos
-   - Pix
-6. confirmar que o mesmo D1 continua em uso.
+Secrets sempre server-side.
 
-## Prioridade se faltar tempo/crédito
+---
 
-P0: domínio, multiplayer, persistência, matchmaking, amigos, admin, segurança e build.
+# Publicação
 
-P1: layout, Clube, presentes, Pix e mobile.
+## 26. Preview
 
-P2: temas, peças, sons, guias, professores IA e microinterações.
+Quando CI estiver verde:
 
-Não sacrificar P0 por efeitos visuais.
+- gerar preview no ChatGPT Site EXISTENTE;
+- não criar novo Site;
+- preservar D1;
+- testar preview.
+
+## 27. Produção
+
+Depois do preview aprovado:
+
+publicar no mesmo Site.
+
+Testar pelo domínio REAL `https://noutychess.pro`:
+
+- `/`
+- `/clube`
+- `/apoie`
+- `/regras`
+- `/termos`
+- `/privacidade`
+- `/admin`
+- login;
+- perfil;
+- multiplayer;
+- matchmaking;
+- amigos;
+- WhatsApp;
+- ranking;
+- Clube;
+- presentes;
+- Pix;
+- temas;
+- sons;
+- professores.
+
+Confirmar que o mesmo D1 continua em uso.
+
+---
+
+# Definição de pronto
+
+Só finalize quando:
+
+- testes passam;
+- lint passa;
+- build passa;
+- vulnerabilidades relevantes foram tratadas/documentadas;
+- admin está protegido e funcional;
+- GitHub está privado se compatível com Sites;
+- `noutychess.pro` está verificado com HTTPS;
+- duas sessões multiplayer funcionam;
+- matchmaking funciona;
+- amigos funcionam;
+- WhatsApp funciona;
+- Clube funciona;
+- presentes persistem;
+- Pix persiste e copia;
+- 3+ tabuleiros gratuitos;
+- 3+ peças gratuitas;
+- premium está visualmente diferenciado;
+- guias/alertas são opcionais;
+- sons estão completos;
+- professores funcionam nos modos educacionais;
+- nenhuma assistência de engine existe em ranked;
+- mobile está bom;
+- versão final foi publicada no Site existente.
 
 ## Relatório final
 
-Entregar somente um resumo objetivo com:
+Entregar somente:
 
 - bugs encontrados/corrigidos;
-- arquivos/commits;
-- testes e build;
-- status GitHub/Sites/D1/domínio/HTTPS;
+- commits;
+- testes/lint/build;
+- vulnerabilidades tratadas;
+- resultado multiplayer em duas sessões;
+- status do admin;
+- status GitHub privado;
+- status domínio/DNS/HTTPS;
+- status ChatGPT Sites/D1;
 - pendências reais.
+
+Economize contexto. Não explique longamente enquanto trabalha. Priorize validar e terminar o que falta.
