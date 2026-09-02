@@ -2,7 +2,10 @@
 
 import {
   Award,
+  Bell,
+  BellOff,
   Bot,
+  BookOpen,
   Check,
   ChevronLeft,
   CircleUserRound,
@@ -17,6 +20,7 @@ import {
   Handshake,
   Heart,
   History,
+  Lightbulb,
   LoaderCircle,
   LockKeyhole,
   LogIn,
@@ -26,7 +30,10 @@ import {
   Palette,
   PenLine,
   RotateCcw,
+  Search,
   Send,
+  Settings2,
+  Share2,
   ShieldCheck,
   Sparkles,
   Star,
@@ -45,7 +52,7 @@ import {
 import { Chess, type Color, type Move, type PieceSymbol, type Square } from 'chess.js';
 import Link from 'next/link';
 import type { DataConnection, Peer } from 'peerjs';
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -76,9 +83,11 @@ type MatchOutcome = GameOutcome | {
   winner: Color | null;
 };
 type ChatMessage = { id: string; author: 'Você' | 'Adversário'; text: string };
+type TeacherChatMessage = { id: string; author: 'Você' | 'Professor'; text: string };
 type PendingPromotion = { from: Square; to: Square };
 type BoardArrow = { from: Square; to: Square };
 type TimeControlId = 'blitz' | 'rapid' | 'classic';
+type TeachingLevel = 'beginner' | 'intermediate' | 'advanced';
 
 const TIME_CONTROLS: Record<TimeControlId, { label: string; hint: string; seconds: number; increment: number }> = {
   blitz: { label: '5 min', hint: 'Rápida', seconds: 300, increment: 0 },
@@ -101,6 +110,7 @@ const DIFFICULTY_LABELS: Record<AiDifficulty, string> = {
 
 const FILES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
 const RANKS = ['8', '7', '6', '5', '4', '3', '2', '1'];
+const GENERAL_WHATSAPP_TEXT = encodeURIComponent('♟️ Vem jogar xadrez comigo no NoutyChess.pro! https://noutychess.pro');
 
 function allSquares(): Square[] {
   return RANKS.flatMap((rank) => FILES.map((file) => `${file}${rank}` as Square));
@@ -154,7 +164,7 @@ function coachLine(personality: AiPersonality, move: Move): string {
     },
     damon: {
       mate: ['Fim da conversa. O rei já entendeu antes de você.'],
-      check: ['Xeque. Nada pessoal — reis só odeiam surpresas.'],
+      check: ['Xeque. Nada pessoal. Reis só odeiam surpresas.'],
       capture: ['Uma peça saiu do tabuleiro. Espero que você tenha calculado o troco.'],
       castle: ['Finalmente o rei encontrou um esconderijo minimamente aceitável.'],
       quiet: ['Um lance discreto. Ou brilhante. Ou suspeito. Vamos descobrir.'],
@@ -172,6 +182,12 @@ function divisionClient(rating: number) {
   if (rating < 2200) return { name: 'Diamante', floor: 1900, ceiling: 2199 };
   if (rating < 2500) return { name: 'Mestre', floor: 2200, ceiling: 2499 };
   return { name: 'Lendário', floor: 2500, ceiling: 3000 };
+}
+
+function levelFromDifficulty(difficulty: AiDifficulty): TeachingLevel {
+  if (difficulty === 'hard' || difficulty === 'expert') return 'advanced';
+  if (difficulty === 'medium') return 'intermediate';
+  return 'beginner';
 }
 
 type NoutyChessGameProps = {
@@ -200,14 +216,26 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
   const [difficulty, setDifficulty] = useState<AiDifficulty>('medium');
   const [teacher, setTeacher] = useState<AiPersonality>('niclaus');
   const [coachMessage, setCoachMessage] = useState('Escolha seu professor e comece a treinar.');
+  const [teacherQuestion, setTeacherQuestion] = useState('');
+  const [teacherChat, setTeacherChat] = useState<TeacherChatMessage[]>([]);
+  const [teacherChatBusy, setTeacherChatBusy] = useState(false);
   const [timeControl, setTimeControl] = useState<TimeControlId>('rapid');
   const [clocks, setClocks] = useState({ w: 600, b: 600 });
   const [orientation, setOrientation] = useState<Color>('w');
   const [audioEnabled, setAudioEnabled] = useState(true);
+  const [showLegalMoves, setShowLegalMoves] = useState(true);
+  const [showCoordinates, setShowCoordinates] = useState(true);
+  const [showLastMove, setShowLastMove] = useState(true);
+  const [showThreats, setShowThreats] = useState(false);
+  const [beginnerGuide, setBeginnerGuide] = useState(true);
+  const [alertsEnabled, setAlertsEnabled] = useState(true);
+  const [animationsEnabled, setAnimationsEnabled] = useState(true);
+  const [onboardingOpen, setOnboardingOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState('Escolha um modo para começar.');
   const [playerColor, setPlayerColor] = useState<Color>('w');
   const [onlinePhase, setOnlinePhase] = useState<OnlinePhase>('idle');
   const [roomCode, setRoomCode] = useState('');
+  const [roomIsMatchmaking, setRoomIsMatchmaking] = useState(false);
   const [joinCode, setJoinCode] = useState('');
   const [networkError, setNetworkError] = useState('');
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -300,16 +328,20 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
       if (!AudioContextClass) return;
       const context = audioContextRef.current ?? new AudioContextClass();
       audioContextRef.current = context;
-      const oscillator = context.createOscillator();
-      const gain = context.createGain();
-      oscillator.type = 'sine';
-      oscillator.frequency.value = move.san.includes('#') ? 640 : move.captured ? 260 : move.san.includes('+') ? 520 : 360;
-      gain.gain.setValueAtTime(0.0001, context.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.055, context.currentTime + 0.012);
-      gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.12);
-      oscillator.connect(gain).connect(context.destination);
-      oscillator.start();
-      oscillator.stop(context.currentTime + 0.13);
+      const frequencies = move.san.includes('#') ? [640, 820] : move.san.includes('+') ? [520, 650] : move.captured ? [270, 190] : move.isKingsideCastle() || move.isQueensideCastle() ? [320, 430] : [360];
+      frequencies.forEach((frequency, index) => {
+        const oscillator = context.createOscillator();
+        const gain = context.createGain();
+        oscillator.type = index % 2 === 0 ? 'sine' : 'triangle';
+        oscillator.frequency.value = frequency;
+        const start = context.currentTime + index * 0.045;
+        gain.gain.setValueAtTime(0.0001, start);
+        gain.gain.exponentialRampToValueAtTime(0.045, start + 0.012);
+        gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.12);
+        oscillator.connect(gain).connect(context.destination);
+        oscillator.start(start);
+        oscillator.stop(start + 0.13);
+      });
     } catch {
       // Audio is optional and must never block a move.
     }
@@ -321,11 +353,11 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
       setOutcome(result);
       setStatusMessage(result.title);
     } else if (chessRef.current.inCheck()) {
-      setStatusMessage('Xeque! O rei precisa ser defendido.');
+      setStatusMessage(beginnerGuide ? 'Xeque! Seu rei está atacado e precisa ser defendido.' : 'Xeque.');
     } else {
       setStatusMessage(chessRef.current.turn() === 'w' ? 'Vez das brancas.' : 'Vez das pretas.');
     }
-  }, []);
+  }, [beginnerGuide]);
 
   const afterAppliedMove = useCallback((move: Move, origin: 'local' | 'remote', previousPosition: string) => {
     const increment = TIME_CONTROLS[timeControl].increment;
@@ -359,10 +391,10 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
       afterAppliedMove(move, 'local', previousPosition);
       return true;
     } catch {
-      setStatusMessage('Esse lance não é permitido nesta posição.');
+      setStatusMessage(beginnerGuide ? 'Esse lance não é permitido nesta posição. Confira o movimento da peça, a vez e a segurança do seu rei.' : 'Lance inválido.');
       return false;
     }
-  }, [afterAppliedMove]);
+  }, [afterAppliedMove, beginnerGuide]);
 
   const resetGame = useCallback((nextMode: GameMode, color: Color = 'w') => {
     gameTokenRef.current += 1;
@@ -376,6 +408,7 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
     setPendingPromotion(null);
     setOutcome(null);
     setAiThinking(false);
+    setTeacherChat([]);
     setClocks({ w: TIME_CONTROLS[timeControl].seconds, b: TIME_CONTROLS[timeControl].seconds });
     setStatusMessage('Vez das brancas.');
     setDrawOffer(false);
@@ -390,6 +423,7 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
     peerRef.current?.destroy();
     peerRef.current = null;
     setOnlinePhase('idle');
+    setRoomIsMatchmaking(false);
     setNetworkError('');
     setDrawOffer(false);
   }, []);
@@ -492,7 +526,9 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
 
     connection.on('open', () => {
       setOnlinePhase('connected');
+      setRoomIsMatchmaking(false);
       setNetworkError('');
+      if (alertsEnabled) setStatusMessage('Adversário conectado. Boa partida!');
       void connection.send({ type: 'hello', displayName: localDisplayName.slice(0, 24) });
       if (role === 'host') {
         resetGame('online', 'w');
@@ -573,7 +609,7 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
       setOnlinePhase('error');
       setNetworkError('Não foi possível manter a conexão da sala.');
     });
-  }, [afterAppliedMove, forceRender, localDisplayName, resetGame, timeControl]);
+  }, [afterAppliedMove, alertsEnabled, forceRender, localDisplayName, resetGame, timeControl]);
 
   const competitiveRequest = useCallback(async (payload: Record<string, unknown>) => {
     const response = await fetch('/api/competitive', {
@@ -639,6 +675,7 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
     const code = createRoomCode();
     setMode('online');
     setRoomCode(code);
+    setRoomIsMatchmaking(matchmaking);
     setOnlinePhase('connecting');
     setStatusMessage('Criando sala segura…');
     try {
@@ -677,6 +714,7 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
     }
     cleanupNetwork();
     setRoomCode(code);
+    setRoomIsMatchmaking(false);
     setMode('online');
     setOnlinePhase('connecting');
     setStatusMessage('Procurando a sala…');
@@ -714,6 +752,7 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
     }
     cleanupNetwork();
     setMode('online');
+    setRoomIsMatchmaking(true);
     setOnlinePhase('connecting');
     setStatusMessage('Buscando uma sala compatível…');
     try {
@@ -747,6 +786,37 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
     setChatDraft('');
   };
 
+  const askTeacher = useCallback(async (help: 'explain' | 'hint' | 'orientation' | 'move', questionOverride?: string) => {
+    if (mode !== 'computer' || teacherChatBusy) return;
+    const question = (questionOverride ?? teacherQuestion).trim() || (help === 'hint' ? 'Me dê uma pista para esta posição.' : help === 'orientation' ? 'Qual ideia devo procurar?' : help === 'move' ? 'Mostre uma sugestão de lance e explique.' : 'O que devo observar nesta posição?');
+    setTeacherChatBusy(true);
+    setTeacherQuestion('');
+    if (questionOverride === undefined && question.trim()) setTeacherChat((messages) => [...messages.slice(-19), { id: crypto.randomUUID(), author: 'Você', text: question }]);
+    try {
+      const response = await fetch('/api/coach', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          fen: chessRef.current.fen(),
+          history: chessRef.current.history(),
+          question,
+          teacher,
+          level: levelFromDifficulty(difficulty),
+          help,
+        }),
+      });
+      const body = await response.json() as { message?: string; error?: string };
+      if (!response.ok || !body.message) throw new Error(body.error ?? 'Professor indisponível.');
+      setTeacherChat((messages) => [...messages.slice(-19), { id: crypto.randomUUID(), author: 'Professor', text: body.message! }]);
+      setCoachMessage(body.message);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Professor avançado temporariamente indisponível.';
+      setTeacherChat((messages) => [...messages.slice(-19), { id: crypto.randomUUID(), author: 'Professor', text: message }]);
+    } finally {
+      setTeacherChatBusy(false);
+    }
+  }, [difficulty, mode, teacher, teacherChatBusy, teacherQuestion]);
+
   useEffect(() => {
     try {
       const raw = localStorage.getItem('noutychess-preferences-v1');
@@ -756,11 +826,19 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
         if (stored.teacher === 'niclaus' || stored.teacher === 'damon') setTeacher(stored.teacher);
         if (stored.timeControl === 'blitz' || stored.timeControl === 'rapid' || stored.timeControl === 'classic') setTimeControl(stored.timeControl);
         if (typeof stored.audioEnabled === 'boolean') setAudioEnabled(stored.audioEnabled);
+        if (typeof stored.showLegalMoves === 'boolean') setShowLegalMoves(stored.showLegalMoves);
+        if (typeof stored.showCoordinates === 'boolean') setShowCoordinates(stored.showCoordinates);
+        if (typeof stored.showLastMove === 'boolean') setShowLastMove(stored.showLastMove);
+        if (typeof stored.showThreats === 'boolean') setShowThreats(stored.showThreats);
+        if (typeof stored.beginnerGuide === 'boolean') setBeginnerGuide(stored.beginnerGuide);
+        if (typeof stored.alertsEnabled === 'boolean') setAlertsEnabled(stored.alertsEnabled);
+        if (typeof stored.animationsEnabled === 'boolean') setAnimationsEnabled(stored.animationsEnabled);
         if (typeof stored.guestName === 'string') {
           const savedGuest = stored.guestName.replace(/[<>\u0000-\u001f]/g, '').trim().slice(0, 24);
           if (savedGuest.length >= 2) setGuestName(savedGuest);
         }
       }
+      if (!localStorage.getItem('noutychess-onboarding-v1')) setOnboardingOpen(true);
       const rawStats = localStorage.getItem('noutychess-stats-v1');
       if (rawStats) {
         const stored = JSON.parse(rawStats) as Record<string, unknown>;
@@ -779,8 +857,8 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('noutychess-preferences-v1', JSON.stringify({ difficulty, teacher, timeControl, audioEnabled, guestName }));
-  }, [audioEnabled, difficulty, guestName, teacher, timeControl]);
+    localStorage.setItem('noutychess-preferences-v1', JSON.stringify({ difficulty, teacher, timeControl, audioEnabled, showLegalMoves, showCoordinates, showLastMove, showThreats, beginnerGuide, alertsEnabled, animationsEnabled, guestName }));
+  }, [alertsEnabled, animationsEnabled, audioEnabled, beginnerGuide, difficulty, guestName, showCoordinates, showLastMove, showLegalMoves, showThreats, teacher, timeControl]);
 
   useEffect(() => {
     let visitorId = localStorage.getItem('noutychess-visitor-id');
@@ -794,16 +872,19 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
       sessionStorage.setItem('noutychess-session-id', sessionId);
     }
     const pulse = () => {
+      const presenceMode = mode === 'online'
+        ? onlinePhase === 'waiting' ? (roomIsMatchmaking ? 'matchmaking' : 'online') : onlinePhase === 'connected' ? 'playing' : 'online'
+        : mode;
       void fetch('/api/presence', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ visitorId, sessionId, displayName: localDisplayName, roomCode: mode === 'online' ? roomCode : null, mode }),
+        body: JSON.stringify({ visitorId, sessionId, displayName: localDisplayName, roomCode: mode === 'online' ? roomCode : null, presenceMode }),
       }).catch(() => undefined);
     };
     pulse();
     const timer = window.setInterval(pulse, 25_000);
     return () => window.clearInterval(timer);
-  }, [localDisplayName, mode, roomCode]);
+  }, [localDisplayName, mode, onlinePhase, roomCode, roomIsMatchmaking]);
 
   useEffect(() => {
     if (!outcome || resultRecordedRef.current || mode === 'menu') return;
@@ -827,12 +908,12 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
         action: 'heartbeat',
         roomCode,
         role: playerColor === 'w' ? 'host' : 'guest',
-        matchmaking: onlinePhase === 'waiting',
+        matchmaking: playerColor === 'w' && roomIsMatchmaking && onlinePhase === 'waiting',
       }).catch(() => undefined);
     };
     const timer = window.setInterval(pulse, 25_000);
     return () => window.clearInterval(timer);
-  }, [authenticatedUser, competitiveRequest, mode, onlinePhase, playerColor, roomCode]);
+  }, [authenticatedUser, competitiveRequest, mode, onlinePhase, playerColor, roomCode, roomIsMatchmaking]);
 
   useEffect(() => {
     if (!authenticatedUser || mode !== 'online' || !outcome || !roomCode || matchReportedRef.current) return;
@@ -933,14 +1014,11 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
   const active = mode !== 'menu' && !currentOutcome && (mode !== 'online' || onlinePhase === 'connected');
 
   return (
-    <main className={`min-h-dvh overflow-x-hidden bg-background text-foreground board-${boardTheme} pieces-${pieceTheme}`}>
+    <main className={`min-h-dvh overflow-x-hidden bg-background text-foreground board-${boardTheme} pieces-${pieceTheme} ${animationsEnabled ? '' : 'motion-reduced'}`}>
       <header className="app-header">
         <button className="brand" type="button" onClick={returnToMenu} aria-label="NoutyChess.pro, voltar ao início">
           <span className="brand-mark">♘</span>
-          <span>
-            <strong>NoutyChess.pro</strong>
-            <small>Jogue melhor</small>
-          </span>
+          <span><strong>NoutyChess.pro</strong><small>Jogue melhor</small></span>
         </button>
         {competitiveProfile ? (
           <button className="profile-chip" type="button" onClick={() => setProfileOpen(true)}>
@@ -950,6 +1028,7 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
         ) : (
           <a className="signin-chip" href={signInPath} target="_top"><LogIn /> Entrar para competir</a>
         )}
+        {competitiveProfile && <NotificationsMenu />}
         <Button variant="ghost" size="icon" onClick={() => setAudioEnabled((value) => !value)} aria-label={audioEnabled ? 'Desativar som' : 'Ativar som'}>
           {audioEnabled ? <Volume2 /> : <VolumeX />}
         </Button>
@@ -971,14 +1050,14 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
               {boardSquares.map((square, index) => {
                 const piece = chess.get(square);
                 const isSelected = selected === square;
-                const legalMoves = legalTargets.get(square) ?? [];
-                const isLegal = legalMoves.length > 0;
+                const availableMoves = legalTargets.get(square) ?? [];
+                const isLegal = showLegalMoves && availableMoves.length > 0;
                 const isCapture = isLegal && Boolean(piece);
-                const isLast = lastMove?.from === square || lastMove?.to === square;
+                const isLast = showLastMove && (lastMove?.from === square || lastMove?.to === square);
                 const isChecked = checkedKing === square;
                 const isMarked = markedSquares.has(square);
                 const isAnnotationStart = annotationStart === square;
-                const isThreatened = Boolean(piece && chess.isAttacked(square, piece.color === 'w' ? 'b' : 'w'));
+                const isThreatened = showThreats && Boolean(piece && chess.isAttacked(square, piece.color === 'w' ? 'b' : 'w'));
                 const fileEdge = orientation === 'w' ? index % 8 === 0 : index % 8 === 7;
                 const rankEdge = orientation === 'w' ? index >= 56 : index < 8;
                 return (
@@ -997,8 +1076,8 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
                     {isLegal && <span className={isCapture ? 'legal-capture' : 'legal-dot'} />}
                     {piece && <span className={`piece piece-${piece.color}`}>{PIECE_GLYPHS[piece.color][piece.type]}</span>}
                     {isThreatened && piece && <span className="danger-alert" aria-hidden="true">!</span>}
-                    {fileEdge && <span className="coord coord-rank">{square[1]}</span>}
-                    {rankEdge && <span className="coord coord-file">{square[0]}</span>}
+                    {showCoordinates && fileEdge && <span className="coord coord-rank">{square[1]}</span>}
+                    {showCoordinates && rankEdge && <span className="coord coord-file">{square[0]}</span>}
                   </button>
                 );
               })}
@@ -1082,28 +1161,37 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
                   signInPath={signInPath}
                   guestName={guestName}
                   setGuestName={setGuestName}
+                  matchmaking={roomIsMatchmaking}
                   onQuickMatch={() => void findQuickMatch()}
                   onCreate={() => void createOnlineRoom(false)}
                   onJoin={() => void joinOnlineRoom()}
+                  onCancel={returnToMenu}
                 />
               ) : (
                 <>
                   <div className="turn-card">
                     <span className={`turn-piece turn-piece-${chess.turn()}`}>{PIECE_GLYPHS[chess.turn()].k}</span>
-                    <span>
-                      <small>{aiThinking ? 'ANALISANDO' : chess.inCheck() ? 'XEQUE' : 'AGORA'}</small>
-                      <strong>{aiThinking ? 'Nouty Bot pensa…' : `${turnLabel} jogam`}</strong>
-                    </span>
+                    <span><small>{aiThinking ? 'ANALISANDO' : chess.inCheck() ? 'XEQUE' : 'AGORA'}</small><strong>{aiThinking ? 'Nouty Bot pensa…' : `${turnLabel} jogam`}</strong></span>
                     {aiThinking && <LoaderCircle className="spin" />}
                   </div>
 
                   <p className="status-message">{statusMessage}</p>
 
                   {mode === 'computer' && (
-                    <div className={`coach-card coach-${teacher}`}>
-                      <span>{teacher === 'niclaus' ? '🦉' : '🐉'}</span>
-                      <div><small>{teacher === 'niclaus' ? 'NICLAUS ENSINA' : 'DAMON COMENTA'}</small><p>{coachMessage}</p></div>
-                    </div>
+                    <>
+                      <div className={`coach-card coach-${teacher}`}>
+                        <span>{teacher === 'niclaus' ? '🦉' : '🐉'}</span>
+                        <div><small>{teacher === 'niclaus' ? 'NICLAUS ENSINA' : 'DAMON COMENTA'}</small><p>{coachMessage}</p></div>
+                      </div>
+                      <TeacherChat
+                        teacher={teacher}
+                        messages={teacherChat}
+                        question={teacherQuestion}
+                        setQuestion={setTeacherQuestion}
+                        busy={teacherChatBusy}
+                        onAsk={(help, question) => void askTeacher(help, question)}
+                      />
+                    </>
                   )}
 
                   {drawOffer && (
@@ -1124,6 +1212,25 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
                     <Button variant="destructive" size="sm" onClick={resign}><Flag /> Desistir</Button>
                   </div>
 
+                  <GamePreferences
+                    audioEnabled={audioEnabled}
+                    setAudioEnabled={setAudioEnabled}
+                    showLegalMoves={showLegalMoves}
+                    setShowLegalMoves={setShowLegalMoves}
+                    showCoordinates={showCoordinates}
+                    setShowCoordinates={setShowCoordinates}
+                    showLastMove={showLastMove}
+                    setShowLastMove={setShowLastMove}
+                    showThreats={showThreats}
+                    setShowThreats={setShowThreats}
+                    beginnerGuide={beginnerGuide}
+                    setBeginnerGuide={setBeginnerGuide}
+                    alertsEnabled={alertsEnabled}
+                    setAlertsEnabled={setAlertsEnabled}
+                    animationsEnabled={animationsEnabled}
+                    setAnimationsEnabled={setAnimationsEnabled}
+                  />
+
                   <section className="history-section">
                     <div className="section-heading"><span><History /> Histórico</span><small>{history.length} lances</small></div>
                     <MoveHistory moves={history} />
@@ -1134,9 +1241,7 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
                       <div className="section-heading"><span><MessageCircle /> Chat da sala</span><small>texto seguro</small></div>
                       <div className="chat-log">
                         {chatMessages.length === 0 ? <p>Nenhuma mensagem ainda.</p> : chatMessages.map((message) => (
-                          <div key={message.id} className={message.author === 'Você' ? 'chat-own' : ''}>
-                            <small>{message.author}</small><span>{message.text}</span>
-                          </div>
+                          <div key={message.id} className={message.author === 'Você' ? 'chat-own' : ''}><small>{message.author}</small><span>{message.text}</span></div>
                         ))}
                       </div>
                       <form className="chat-form" onSubmit={(event) => { event.preventDefault(); sendChat(); }}>
@@ -1155,15 +1260,21 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
       </section>
 
       <footer className="app-credit">
-        <span>Feito pela <strong>Ekasy-Studio</strong>, fundada por Thiago Roger.</span>
-        <nav><Link href="/apoie">Apoie a Ekasy-Studio</Link><Link href="/admin">Administração</Link></nav>
+        <span>© 2026 <strong>Ekasy-Studio</strong> · NoutyChess.pro</span>
+        <nav>
+          <a className="footer-whatsapp" href={`https://wa.me/?text=${GENERAL_WHATSAPP_TEXT}`} target="_blank" rel="noreferrer"><Share2 /> Convidar no WhatsApp</a>
+          <Link href="/apoie">Apoie</Link>
+          <Link href="/regras">Regras</Link>
+          <Link href="/termos">Termos</Link>
+          <Link href="/privacidade">Privacidade</Link>
+        </nav>
       </footer>
 
       <Dialog open={profileOpen} onOpenChange={setProfileOpen}>
         <DialogContent className="profile-dialog">
           <DialogHeader>
             <DialogTitle>Seu perfil lendário</DialogTitle>
-            <DialogDescription>Personalize sua identidade e desbloqueie cosméticos com moedas conquistadas em partidas.</DialogDescription>
+            <DialogDescription>Personalize sua identidade. Todo jogador começa com três tabuleiros e três conjuntos de peças gratuitos.</DialogDescription>
           </DialogHeader>
           {competitiveProfile && (
             <ProfileCustomizer
@@ -1191,15 +1302,11 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
 
       <Dialog open={Boolean(pendingPromotion)} onOpenChange={(open) => { if (!open) setPendingPromotion(null); }}>
         <DialogContent showCloseButton={false} className="promotion-dialog">
-          <DialogHeader>
-            <DialogTitle>Promover peão</DialogTitle>
-            <DialogDescription>Escolha a peça que entrará no tabuleiro.</DialogDescription>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>Promover peão</DialogTitle><DialogDescription>Escolha a peça que entrará no tabuleiro.</DialogDescription></DialogHeader>
           <div className="promotion-options">
             {(['q', 'r', 'b', 'n'] as const).map((piece) => (
               <button key={piece} type="button" onClick={() => pendingPromotion && attemptMove(pendingPromotion.from, pendingPromotion.to, piece)}>
-                <span>{PIECE_GLYPHS[chess.turn()][piece]}</span>
-                <small>{PIECE_NAMES[piece]}</small>
+                <span>{PIECE_GLYPHS[chess.turn()][piece]}</span><small>{PIECE_NAMES[piece]}</small>
               </button>
             ))}
           </div>
@@ -1209,14 +1316,19 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
       <Dialog open={Boolean(outcome)} onOpenChange={() => undefined}>
         <DialogContent showCloseButton={false} className="result-dialog">
           <div className="result-icon">{outcome?.winner ? PIECE_GLYPHS[outcome.winner].k : '½'}</div>
-          <DialogHeader>
-            <DialogTitle>{outcome?.title}</DialogTitle>
-            <DialogDescription>{outcome?.detail}</DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={returnToMenu}>Trocar modo</Button>
-            <Button onClick={() => resetGame(mode === 'online' ? 'local' : mode)}>Jogar novamente <RotateCcw /></Button>
-          </DialogFooter>
+          <DialogHeader><DialogTitle>{outcome?.title}</DialogTitle><DialogDescription>{outcome?.detail}</DialogDescription></DialogHeader>
+          <DialogFooter><Button variant="outline" onClick={returnToMenu}>Trocar modo</Button><Button onClick={() => resetGame(mode === 'online' ? 'local' : mode)}>Jogar novamente <RotateCcw /></Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={onboardingOpen} onOpenChange={setOnboardingOpen}>
+        <DialogContent className="profile-dialog">
+          <DialogHeader><DialogTitle>Como você prefere jogar?</DialogTitle><DialogDescription>Escolha um ponto de partida. Você poderá mudar tudo durante qualquer partida.</DialogDescription></DialogHeader>
+          <div className="onboarding-options">
+            <button type="button" onClick={() => { setBeginnerGuide(true); setShowLegalMoves(true); setShowCoordinates(true); setShowLastMove(true); setAlertsEnabled(true); localStorage.setItem('noutychess-onboarding-v1', 'beginner'); setOnboardingOpen(false); }}><BookOpen /><strong>Sou iniciante</strong><small>Guias, casas legais e alertas ligados.</small></button>
+            <button type="button" onClick={() => { setBeginnerGuide(false); setShowLegalMoves(false); setShowCoordinates(true); setShowLastMove(true); setAlertsEnabled(true); localStorage.setItem('noutychess-onboarding-v1', 'experienced'); setOnboardingOpen(false); }}><Trophy /><strong>Já sei jogar</strong><small>Interface limpa com último lance e coordenadas.</small></button>
+            <button type="button" onClick={() => { localStorage.setItem('noutychess-onboarding-v1', 'custom'); setOnboardingOpen(false); }}><Settings2 /><strong>Personalizar depois</strong><small>Use as configurações durante a partida.</small></button>
+          </div>
         </DialogContent>
       </Dialog>
     </main>
@@ -1244,18 +1356,21 @@ function PlayerStrip({ color, label, sublabel, seconds, active, captured }: {
 }
 
 const BOARD_SKINS = [
-  { id: 'emerald', label: 'Esmeralda', light: '#d9d8c2', dark: '#4f8778', cost: 0 },
-  { id: 'midnight', label: 'Meia-noite', light: '#a8b6c8', dark: '#34475d', cost: 1_200 },
-  { id: 'ocean', label: 'Oceano', light: '#b9dce0', dark: '#247488', cost: 2_000 },
-  { id: 'royal', label: 'Realeza', light: '#dfcfae', dark: '#7a4c74', cost: 3_500 },
-  { id: 'obsidian', label: 'Obsidiana', light: '#9f9a8e', dark: '#292d32', cost: 4_800 },
-  { id: 'aurora', label: 'Aurora Lendária', light: '#d8fff5', dark: '#654bc7', cost: -1, member: true },
+  { id: 'emerald', label: 'Clássico Verde', light: '#d9d8c2', dark: '#4f8778', cost: 0 },
+  { id: 'wood', label: 'Madeira Nobre', light: '#e6cfad', dark: '#9a6844', cost: 0 },
+  { id: 'midnight', label: 'Meia-noite', light: '#a8b6c8', dark: '#34475d', cost: 0 },
+  { id: 'ocean', label: 'Oceano', light: '#b9dce0', dark: '#247488', cost: 2_000, rarity: 'Raro' },
+  { id: 'royal', label: 'Realeza', light: '#dfcfae', dark: '#7a4c74', cost: 3_500, rarity: 'Épico' },
+  { id: 'obsidian', label: 'Obsidiana', light: '#9f9a8e', dark: '#292d32', cost: 4_800, rarity: 'Lendário' },
+  { id: 'aurora', label: 'Aurora Lendária', light: '#d8fff5', dark: '#654bc7', cost: -1, member: true, rarity: 'Clube' },
 ];
 const PIECE_SKINS = [
-  { id: 'classic', label: 'Clássico', cost: 0 },
-  { id: 'neo', label: 'Neo', cost: 2_400 },
-  { id: 'royal', label: 'Dourado real', cost: 6_000 },
-  { id: 'prisma', label: 'Prisma Lendário', cost: -1, member: true },
+  { id: 'classic', label: 'Clássicas', cost: 0 },
+  { id: 'modern', label: 'Modernas', cost: 0 },
+  { id: 'minimal', label: 'Minimalistas', cost: 0 },
+  { id: 'neo', label: 'Neo', cost: 2_400, rarity: 'Épico' },
+  { id: 'royal', label: 'Dourado real', cost: 6_000, rarity: 'Lendário' },
+  { id: 'prisma', label: 'Prisma Lendário', cost: -1, member: true, rarity: 'Clube' },
 ];
 const PROFILE_EMOTES = ['♘', '♛', '♜', '♝', '♚', '⚔️', '🦁', '🐉', '🦉', '🔥', '⚡', '💎'];
 const PROFILE_TITLES = ['Desafiante', 'Estrategista', 'Caçador de reis', 'Mestre tático', 'Guardião do centro', 'Lenda da arena'];
@@ -1281,7 +1396,7 @@ function CommunityChat({ authenticated, signInPath, onJoinRoom }: { authenticate
 
   useEffect(() => {
     void load();
-    const timer = window.setInterval(() => void load(), 6_000);
+    const timer = window.setInterval(() => { if (document.visibilityState === 'visible') void load(); }, 8_000);
     return () => window.clearInterval(timer);
   }, [load]);
 
@@ -1350,18 +1465,18 @@ function ProfileCustomizer({ profile, name, setName, emote, setEmote, title, set
       <label className="profile-name-field">Nome público<input value={name} onChange={(event) => setName(event.target.value.slice(0, 24))} minLength={2} maxLength={24} /></label>
       <div className="custom-section"><span><Star /> Emote do perfil</span><div className="emote-grid">{PROFILE_EMOTES.map((item) => <button key={item} type="button" className={emote === item ? 'is-active' : ''} onClick={() => setEmote(item)}>{item}</button>)}</div></div>
       <div className="custom-section"><span><Award /> Insígnia pública</span><div className="title-grid">{PROFILE_TITLES.map((item) => <button key={item} type="button" className={title === item ? 'is-active' : ''} onClick={() => setTitle(item)}>{item}</button>)}</div></div>
-      <div className="custom-section"><span><Palette /> Tabuleiros premium</span><div className="skin-grid">{BOARD_SKINS.map((skin) => {
+      <div className="custom-section"><span><Palette /> Tabuleiros</span><div className="skin-grid">{BOARD_SKINS.map((skin) => {
         const code = `board:${skin.id}`;
         const unlocked = owns(code, skin.cost === 0, skin.member);
         return <div key={skin.id} className={boardTheme === skin.id ? 'is-equipped' : ''}>
-          <button type="button" disabled={!unlocked} onClick={() => setBoardTheme(skin.id)}><i style={{ '--skin-light': skin.light, '--skin-dark': skin.dark } as CSSProperties} /><strong>{skin.label}</strong>{unlocked ? <small>{boardTheme === skin.id ? 'Equipado' : 'Disponível'}</small> : skin.member ? <small><Crown /> Clube Lendário</small> : <small><LockKeyhole /> {skin.cost.toLocaleString('pt-BR')}</small>}</button>
+          <button type="button" disabled={!unlocked} onClick={() => setBoardTheme(skin.id)}><i style={{ '--skin-light': skin.light, '--skin-dark': skin.dark } as CSSProperties} /><strong>{skin.label}</strong>{unlocked ? <small>{boardTheme === skin.id ? 'Equipado' : skin.cost === 0 ? 'Grátis' : 'Disponível'}</small> : skin.member ? <small><Crown /> Clube Lendário</small> : <small><LockKeyhole /> {skin.cost.toLocaleString('pt-BR')} · {skin.rarity}</small>}</button>
           {!unlocked && (skin.member ? <Link className="member-item-link" href="/clube"><Crown /> Exclusivo do Clube</Link> : <Button size="xs" variant="secondary" onClick={() => onBuy(code)} disabled={profile.coins < skin.cost}><ShoppingBag /> Desbloquear</Button>)}
         </div>;
       })}</div></div>
       <div className="custom-section"><span><Sparkles /> Estilos de peças</span><div className="piece-skin-grid">{PIECE_SKINS.map((skin) => {
         const code = `pieces:${skin.id}`;
         const unlocked = owns(code, skin.cost === 0, skin.member);
-        return <div key={skin.id} className={pieceTheme === skin.id ? 'is-equipped' : ''}><button type="button" disabled={!unlocked} onClick={() => setPieceTheme(skin.id)}><b className={`piece-sample sample-${skin.id}`}>♞</b><strong>{skin.label}</strong><small>{unlocked ? (pieceTheme === skin.id ? 'Equipado' : 'Disponível') : skin.member ? 'Clube Lendário' : `${skin.cost.toLocaleString('pt-BR')} moedas`}</small></button>{!unlocked && (skin.member ? <Link className="member-item-link" href="/clube"><Crown /> Exclusivo do Clube</Link> : <Button size="xs" variant="secondary" onClick={() => onBuy(code)} disabled={profile.coins < skin.cost}><ShoppingBag /> Desbloquear</Button>)}</div>;
+        return <div key={skin.id} className={pieceTheme === skin.id ? 'is-equipped' : ''}><button type="button" disabled={!unlocked} onClick={() => setPieceTheme(skin.id)}><b className={`piece-sample sample-${skin.id}`}>♞</b><strong>{skin.label}</strong><small>{unlocked ? (pieceTheme === skin.id ? 'Equipado' : skin.cost === 0 ? 'Grátis' : 'Disponível') : skin.member ? 'Clube Lendário' : `${skin.cost.toLocaleString('pt-BR')} moedas · ${skin.rarity}`}</small></button>{!unlocked && (skin.member ? <Link className="member-item-link" href="/clube"><Crown /> Exclusivo do Clube</Link> : <Button size="xs" variant="secondary" onClick={() => onBuy(code)} disabled={profile.coins < skin.cost}><ShoppingBag /> Desbloquear</Button>)}</div>;
       })}</div></div>
       {error && <div className="network-error">{error}</div>}
     </div>
@@ -1373,19 +1488,16 @@ function LegendaryClubCard({ profile, signInPath }: { profile: CompetitiveProfil
   return (
     <section className={`legend-club-card ${active ? 'is-member' : ''}`}>
       <div className="legend-club-crown"><Crown /></div>
-      <div className="legend-club-copy">
-        <small>{active ? 'MEMBRO LENDÁRIO ATIVO' : 'CLUBE LENDÁRIO'}</small>
-        <strong>{active ? 'Sua lenda deixa uma marca.' : 'Uma assinatura para quem vive o jogo.'}</strong>
-        <span>Aurora animada, peças Prisma, moldura viva, emotes raros e eventos de membros.</span>
-      </div>
+      <div className="legend-club-copy"><small>{active ? 'MEMBRO LENDÁRIO ATIVO' : 'CLUBE LENDÁRIO'}</small><strong>{active ? 'Sua lenda deixa uma marca.' : 'Uma assinatura para quem vive o jogo.'}</strong><span>Aurora animada, peças Prisma, moldura viva, emotes raros e eventos de membros.</span></div>
       {profile ? <Link href="/clube">{active ? <><Sparkles /> Ver benefícios</> : <><Crown /> Conhecer o Clube</>}</Link> : <a href={signInPath} target="_top"><Crown /> Conhecer o Clube</a>}
     </section>
   );
 }
 
-type FriendRow = { pair_key: string; user_id: string; display_name: string; avatar_emote: string; rating: number };
+type FriendRow = { pair_key: string; user_id: string; display_name: string; avatar_emote: string; rating: number; online?: number; presence_mode?: string | null };
 type FriendRequest = Pick<FriendRow, 'pair_key' | 'user_id' | 'display_name' | 'avatar_emote' | 'rating'>;
 type FriendInvite = { id: string; room_code: string; expires_at: number; display_name: string; avatar_emote: string };
+type FriendSearchResult = { user_id: string; display_name: string; avatar_emote: string; rating: number; online?: number; presence_mode?: string | null; friendship_status?: string | null; requested_by?: string | null };
 type FriendsPayload = { friends: FriendRow[]; requests: FriendRequest[]; sent: Array<{ pair_key: string; display_name: string }>; invites: FriendInvite[] };
 
 function FriendsPanel({ authenticated, signInPath, roomCode, onJoinRoom }: {
@@ -1396,6 +1508,7 @@ function FriendsPanel({ authenticated, signInPath, roomCode, onJoinRoom }: {
 }) {
   const [data, setData] = useState<FriendsPayload>({ friends: [], requests: [], sent: [], invites: [] });
   const [friendName, setFriendName] = useState('');
+  const [searchResults, setSearchResults] = useState<FriendSearchResult[]>([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState('');
 
@@ -1414,9 +1527,26 @@ function FriendsPanel({ authenticated, signInPath, roomCode, onJoinRoom }: {
   useEffect(() => {
     void load();
     if (!authenticated) return;
-    const timer = window.setInterval(() => void load(), 12_000);
+    const timer = window.setInterval(() => { if (document.visibilityState === 'visible') void load(); }, 12_000);
     return () => window.clearInterval(timer);
   }, [authenticated, load]);
+
+  useEffect(() => {
+    if (!authenticated || friendName.trim().length < 2) {
+      setSearchResults([]);
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      void fetch(`/api/friends?q=${encodeURIComponent(friendName.trim())}`, { cache: 'no-store' })
+        .then(async (response) => {
+          const body = await response.json() as { search?: FriendSearchResult[]; error?: string };
+          if (!response.ok) throw new Error(body.error ?? 'Busca indisponível.');
+          setSearchResults(body.search ?? []);
+        })
+        .catch((requestError: unknown) => setError(requestError instanceof Error ? requestError.message : 'Busca indisponível.'));
+    }, 320);
+    return () => window.clearTimeout(timer);
+  }, [authenticated, friendName]);
 
   const act = async (action: string, payload: Record<string, unknown> = {}) => {
     setBusy(`${action}:${String(payload.pairKey ?? payload.friendId ?? '')}`);
@@ -1430,7 +1560,10 @@ function FriendsPanel({ authenticated, signInPath, roomCode, onJoinRoom }: {
       const body = await response.json() as { error?: string; roomCode?: string };
       if (!response.ok) throw new Error(body.error ?? 'A operação foi rejeitada.');
       if (body.roomCode) onJoinRoom(body.roomCode);
-      if (action === 'request') setFriendName('');
+      if (action === 'request') {
+        setFriendName('');
+        setSearchResults([]);
+      }
       await load();
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'A operação falhou.');
@@ -1447,15 +1580,22 @@ function FriendsPanel({ authenticated, signInPath, roomCode, onJoinRoom }: {
   return (
     <details className="friends-panel" open={Boolean(roomCode)}>
       <summary><span><UsersRound /> Amigos {notifications > 0 && <b>{notifications}</b>}</span><small>{data.friends.length} adicionados</small></summary>
-      <form className="friend-search" onSubmit={(event) => { event.preventDefault(); void act('request', { friendName }); }}>
-        <input value={friendName} onChange={(event) => setFriendName(event.target.value.replace(/[<>]/g, '').slice(0, 24))} placeholder="Nome exato do jogador" minLength={2} maxLength={24} />
-        <Button size="sm" type="submit" disabled={friendName.trim().length < 2 || Boolean(busy)}><UserPlus /> Adicionar</Button>
-      </form>
+      <div className="friend-search">
+        <Search />
+        <input value={friendName} onChange={(event) => setFriendName(event.target.value.replace(/[<>]/g, '').slice(0, 24))} placeholder="Buscar jogador pelo nome" minLength={2} maxLength={24} aria-label="Buscar jogador pelo nome" />
+      </div>
+      {searchResults.length > 0 && <div className="friend-results">{searchResults.map((result) => (
+        <div className="friend-result" key={result.user_id}>
+          <span>{result.avatar_emote}</span>
+          <span><strong>{result.display_name}</strong><small><i className={`presence-dot ${Number(result.online) === 1 ? 'online' : ''}`} />{Number(result.online) === 1 ? result.presence_mode === 'playing' ? 'Em partida' : result.presence_mode === 'matchmaking' ? 'Procurando partida' : 'Online' : 'Offline'} · {result.rating} Elo</small></span>
+          {result.friendship_status === 'accepted' ? <small>Amigo</small> : result.friendship_status === 'pending' ? <small>Pendente</small> : <Button size="xs" disabled={Boolean(busy)} onClick={() => void act('request', { friendId: result.user_id })}><UserPlus /> Adicionar</Button>}
+        </div>
+      ))}</div>}
       {data.invites.map((invite) => <div className="friend-alert" key={invite.id}><span>{invite.avatar_emote}</span><div><strong>{invite.display_name} chamou você</strong><small>Sala {invite.room_code}</small></div><Button size="xs" onClick={() => void act('accept-invite', { inviteId: invite.id })}><Gamepad2 /> Jogar</Button></div>)}
       {data.requests.map((request) => <div className="friend-alert" key={request.pair_key}><span>{request.avatar_emote}</span><div><strong>{request.display_name}</strong><small>{request.rating} Elo quer ser seu amigo</small></div><Button size="xs" onClick={() => void act('accept', { pairKey: request.pair_key })}><Heart /> Aceitar</Button></div>)}
       <div className="friend-list">
-        {data.friends.length === 0 ? <p>Adicione alguém pelo nome público para criar sua primeira rivalidade amistosa.</p> : data.friends.map((friend) => (
-          <div key={friend.pair_key}><span>{friend.avatar_emote}</span><div><strong>{friend.display_name}</strong><small>{friend.rating} Elo</small></div>{roomCode && <Button size="xs" variant="secondary" disabled={Boolean(busy)} onClick={() => void act('invite', { friendId: friend.user_id, roomCode })}><Send /> Convidar</Button>}<button type="button" className="friend-remove" onClick={() => void act('remove', { pairKey: friend.pair_key })} aria-label={`Remover ${friend.display_name}`}>Remover</button></div>
+        {data.friends.length === 0 ? <p>Busque pelo nome para criar sua primeira rivalidade amistosa.</p> : data.friends.map((friend) => (
+          <div key={friend.pair_key}><span>{friend.avatar_emote}</span><div><strong>{friend.display_name}</strong><small><i className={`presence-dot ${Number(friend.online) === 1 ? 'online' : ''}`} />{Number(friend.online) === 1 ? friend.presence_mode === 'playing' ? 'Em partida' : friend.presence_mode === 'matchmaking' ? 'Procurando' : 'Online' : 'Offline'} · {friend.rating} Elo</small></div>{roomCode && <Button size="xs" variant="secondary" disabled={Boolean(busy)} onClick={() => void act('invite', { friendId: friend.user_id, roomCode })}><Send /> Convidar</Button>}<button type="button" className="friend-remove" onClick={() => void act('remove', { pairKey: friend.pair_key })} aria-label={`Remover ${friend.display_name}`}>Remover</button></div>
         ))}
       </div>
       {data.sent.length > 0 && <small className="friend-pending">Aguardando: {data.sent.map((item) => item.display_name).join(', ')}</small>}
@@ -1486,65 +1626,46 @@ function MenuPanel({ difficulty, setDifficulty, teacher, setTeacher, timeControl
     <>
       <div className="eyebrow"><Sparkles /> Arena Nouty</div>
       <h1>Seu próximo grande lance começa aqui.</h1>
-      <p className="panel-intro">Compita, aprenda e conquiste sua divisão.</p>
-
-      <CompetitiveHub profile={profile} leaderboard={leaderboard} signInPath={signInPath} onEditProfile={onEditProfile} />
+      <p className="panel-intro">Jogue online primeiro. Depois treine, evolua e construa sua identidade na arena.</p>
 
       {!profile && (
-        <label className="guest-identity">
-          <span><CircleUserRound /><span><strong>Jogar como convidado</strong><small>Sem cadastro. Digite apenas seu nome.</small></span></span>
-          <input value={guestName} onChange={(event) => setGuestName(event.target.value.replace(/[<>]/g, '').slice(0, 24))} minLength={2} maxLength={24} aria-label="Seu nome de convidado" />
-        </label>
+        <label className="guest-identity"><span><CircleUserRound /><span><strong>Jogar como convidado</strong><small>Sem cadastro. Digite apenas seu nome.</small></span></span><input value={guestName} onChange={(event) => setGuestName(event.target.value.replace(/[<>]/g, '').slice(0, 24))} minLength={2} maxLength={24} aria-label="Seu nome de convidado" /></label>
       )}
 
-      <LegendaryClubCard profile={profile} signInPath={signInPath} />
+      <div className="mode-list mode-list-priority">
+        <button className="mode-card mode-card-ranked" type="button" onClick={onOnline}>
+          <span className="mode-icon"><Globe2 /></span><span><small>PRINCIPAL</small><strong>JOGAR ONLINE</strong><small>Partida rápida, sala com código ou convite de amigo</small><LivePresence /></span><span aria-hidden="true">→</span>
+        </button>
+        <button className="mode-card mode-card-primary" type="button" onClick={onComputer}><span className="mode-icon"><Bot /></span><span><strong>Academia com professores</strong><small>Niclaus e Damon ensinam enquanto jogam</small></span><span aria-hidden="true">→</span></button>
+        <button className="mode-card" type="button" onClick={onLocal}><span className="mode-icon"><CircleUserRound /></span><span><strong>Amigo no mesmo aparelho</strong><small>Partida local para dois</small></span><span aria-hidden="true">→</span></button>
+      </div>
 
+      <CompetitiveHub profile={profile} leaderboard={leaderboard} signInPath={signInPath} onEditProfile={onEditProfile} />
       <FriendsPanel authenticated={Boolean(profile)} signInPath={signInPath} onJoinRoom={onCommunityJoin} />
-
+      <LegendaryClubCard profile={profile} signInPath={signInPath} />
       <CommunityChat authenticated={Boolean(profile)} signInPath={signInPath} onJoinRoom={onCommunityJoin} />
 
-      <div className="setting-block">
-        <span className="setting-label"><Clock3 /> Ritmo</span>
-        <div className="segmented segmented-time">
-          {(Object.keys(TIME_CONTROLS) as TimeControlId[]).map((control) => (
-            <button key={control} type="button" className={timeControl === control ? 'is-active' : ''} onClick={() => setTimeControl(control)}>
-              <strong>{TIME_CONTROLS[control].label}</strong><small>{TIME_CONTROLS[control].hint}</small>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="setting-block">
-        <span className="setting-label"><Award /> Escolha seu professor</span>
-        <div className="teacher-picker">
-          <button type="button" className={teacher === 'niclaus' ? 'is-active' : ''} onClick={() => setTeacher('niclaus')}><span>🦉</span><strong>Niclaus</strong><small>Calmo e didático</small></button>
-          <button type="button" className={teacher === 'damon' ? 'is-active' : ''} onClick={() => setTeacher('damon')}><span>🐉</span><strong>Damon</strong><small>Sarcástico e imprevisível</small></button>
-        </div>
-      </div>
-
-      <div className="setting-block">
-        <span className="setting-label"><MonitorCog /> Dificuldade da academia</span>
-        <div className="segmented segmented-four">
-          {(['easy', 'medium', 'hard', 'expert'] as AiDifficulty[]).map((level) => (
-            <button key={level} type="button" className={difficulty === level ? 'is-active' : ''} onClick={() => setDifficulty(level)}>{DIFFICULTY_LABELS[level]}</button>
-          ))}
-        </div>
-      </div>
-
-      <div className="mode-list">
-        <button className="mode-card mode-card-ranked" type="button" onClick={onOnline}>
-          <span className="mode-icon"><Globe2 /></span><span><strong>Multiplayer competitivo</strong><small>Pareamento automático ou sala com código</small></span><span aria-hidden="true">→</span>
-        </button>
-        <button className="mode-card mode-card-primary" type="button" onClick={onComputer}>
-          <span className="mode-icon"><Bot /></span><span><strong>Academia com IA</strong><small>Treine com Niclaus ou Damon</small></span><span aria-hidden="true">→</span>
-        </button>
-        <button className="mode-card" type="button" onClick={onLocal}>
-          <span className="mode-icon"><CircleUserRound /></span><span><strong>Amigo no mesmo aparelho</strong><small>Partida local para dois</small></span><span aria-hidden="true">→</span>
-        </button>
-      </div>
+      <div className="setting-block"><span className="setting-label"><Clock3 /> Ritmo</span><div className="segmented segmented-time">{(Object.keys(TIME_CONTROLS) as TimeControlId[]).map((control) => <button key={control} type="button" className={timeControl === control ? 'is-active' : ''} onClick={() => setTimeControl(control)}><strong>{TIME_CONTROLS[control].label}</strong><small>{TIME_CONTROLS[control].hint}</small></button>)}</div></div>
+      <div className="setting-block"><span className="setting-label"><Award /> Professor da academia</span><div className="teacher-picker"><button type="button" className={teacher === 'niclaus' ? 'is-active' : ''} onClick={() => setTeacher('niclaus')}><span>🦉</span><strong>Niclaus</strong><small>Calmo e didático</small></button><button type="button" className={teacher === 'damon' ? 'is-active' : ''} onClick={() => setTeacher('damon')}><span>🐉</span><strong>Damon</strong><small>Direto e tático</small></button></div></div>
+      <div className="setting-block"><span className="setting-label"><MonitorCog /> Dificuldade da academia</span><div className="segmented segmented-four">{(['easy', 'medium', 'hard', 'expert'] as AiDifficulty[]).map((level) => <button key={level} type="button" className={difficulty === level ? 'is-active' : ''} onClick={() => setDifficulty(level)}>{DIFFICULTY_LABELS[level]}</button>)}</div></div>
       <div className="status-note"><span /> Motor oficial pronto para jogar</div>
     </>
   );
+}
+
+function LivePresence() {
+  const [presence, setPresence] = useState({ online: 0, matchmaking: 0 });
+  useEffect(() => {
+    const load = () => void fetch('/api/presence', { cache: 'no-store' }).then(async (response) => {
+      if (!response.ok) return;
+      const body = await response.json() as { online?: number; matchmaking?: number };
+      setPresence({ online: Number(body.online ?? 0), matchmaking: Number(body.matchmaking ?? 0) });
+    }).catch(() => undefined);
+    load();
+    const timer = window.setInterval(() => { if (document.visibilityState === 'visible') load(); }, 15_000);
+    return () => window.clearInterval(timer);
+  }, []);
+  return <span className="live-presence"><i /> {presence.online} online{presence.matchmaking > 0 ? ` · ${presence.matchmaking} pareando` : ''}</span>;
 }
 
 function CompetitiveHub({ profile, leaderboard, signInPath, onEditProfile }: {
@@ -1554,37 +1675,21 @@ function CompetitiveHub({ profile, leaderboard, signInPath, onEditProfile }: {
   onEditProfile: () => void;
 }) {
   if (!profile) {
-    return (
-      <div className="competitive-guest">
-        <div><Medal /><span><strong>Ranking competitivo</strong><small>Salve Elo, moedas, níveis e insígnias. Entrar é opcional.</small></span></div>
-        <a href={signInPath} target="_top"><LogIn /> Entrar para competir</a>
-      </div>
-    );
+    return <div className="competitive-guest"><div><Medal /><span><strong>Ranking competitivo</strong><small>Salve Elo, moedas, níveis e insígnias. Entrar é opcional.</small></span></div><a href={signInPath} target="_top"><LogIn /> Entrar para competir</a></div>;
   }
   const division = divisionClient(profile.rating);
   const next = division.ceiling >= 3000 ? 3000 : division.ceiling + 1;
   const progress = Math.max(0, Math.min(100, ((profile.rating - division.floor) / Math.max(1, next - division.floor)) * 100));
   return (
     <div className="competitive-hub">
-      <button type="button" className="rank-card" onClick={onEditProfile}>
-        <span className="rank-emote">{profile.avatarEmote}</span>
-        <span><small>{profile.profileTitle}</small><strong>{profile.displayName}</strong><em>{division.name} · {profile.rating} Elo</em></span>
-        <span className="rank-level">Nv. {profile.level}</span>
-        <i><b style={{ width: `${progress}%` }} /></i>
-      </button>
-      <div className="reward-strip">
-        <span><Star /> {profile.xp} XP</span><span><span className="coin-dot">N</span> {profile.coins} moedas</span><span><TrendingUp /> {profile.winStreak} sequência</span>
-      </div>
-      <div className="mini-ranking">
-        <div><strong><Trophy /> Top da arena</strong><small>Temporada atual</small></div>
-        {leaderboard.slice(0, 3).map((entry) => <span key={entry.userId}><b>#{entry.rank}</b><i>{entry.avatarEmote}</i><strong>{entry.displayName}</strong><em>{entry.rating}</em></span>)}
-        {leaderboard.length === 0 && <p>O primeiro lugar ainda está esperando por você.</p>}
-      </div>
+      <button type="button" className="rank-card" onClick={onEditProfile}><span className="rank-emote">{profile.avatarEmote}</span><span><small>{profile.profileTitle}</small><strong>{profile.displayName}</strong><em>{division.name} · {profile.rating} Elo</em></span><span className="rank-level">Nv. {profile.level}</span><i><b style={{ width: `${progress}%` }} /></i></button>
+      <div className="reward-strip"><span><Star /> {profile.xp} XP</span><span><span className="coin-dot">N</span> {profile.coins} moedas</span><span><TrendingUp /> {profile.winStreak} sequência</span></div>
+      <div className="mini-ranking"><div><strong><Trophy /> Top da arena</strong><small>Temporada atual</small></div>{leaderboard.slice(0, 3).map((entry) => <span key={entry.userId}><b>#{entry.rank}</b><i>{entry.avatarEmote}</i><strong>{entry.displayName}</strong><em>{entry.rating}</em></span>)}{leaderboard.length === 0 && <p>O primeiro lugar ainda está esperando por você.</p>}</div>
     </div>
   );
 }
 
-function OnlineLobby({ phase, roomCode, joinCode, setJoinCode, error, authenticated, signInPath, guestName, setGuestName, onQuickMatch, onCreate, onJoin }: {
+function OnlineLobby({ phase, roomCode, joinCode, setJoinCode, error, authenticated, signInPath, guestName, setGuestName, matchmaking, onQuickMatch, onCreate, onJoin, onCancel }: {
   phase: OnlinePhase;
   roomCode: string;
   joinCode: string;
@@ -1594,50 +1699,147 @@ function OnlineLobby({ phase, roomCode, joinCode, setJoinCode, error, authentica
   signInPath: string;
   guestName: string;
   setGuestName: (name: string) => void;
+  matchmaking: boolean;
   onQuickMatch: () => void;
   onCreate: () => void;
   onJoin: () => void;
+  onCancel: () => void;
 }) {
+  const [copied, setCopied] = useState(false);
   const copyCode = async () => {
-    if (roomCode) await navigator.clipboard.writeText(roomCode).catch(() => undefined);
+    if (!roomCode) return;
+    try {
+      await navigator.clipboard.writeText(roomCode);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    } catch {
+      setCopied(false);
+    }
   };
+  const inviteUrl = roomCode
+    ? `https://wa.me/?text=${encodeURIComponent(`♟️ Te desafio para uma partida no NoutyChess.pro! Código da sala: ${roomCode}\nhttps://noutychess.pro`)}`
+    : `https://wa.me/?text=${GENERAL_WHATSAPP_TEXT}`;
   return (
     <div className="online-lobby">
-      <div className="eyebrow"><Globe2 /> Multiplayer em destaque</div>
+      <div className="eyebrow"><Globe2 /> JOGAR ONLINE</div>
       <h2>Encontre seu próximo rival.</h2>
-      <p>Partidas ranqueadas são confirmadas pelos dois jogadores e validadas antes de atualizar o Elo.</p>
+      <LivePresence />
+      <p>Pareamento competitivo ou sala privada. Resultados ranqueados são validados antes de atualizar o Elo.</p>
       {phase === 'waiting' ? (
         <>
           <div className="room-code-card">
-            <small>SEU CÓDIGO</small><strong>{roomCode}</strong>
-            <Button variant="secondary" onClick={copyCode}><Copy /> Copiar código</Button>
-            <span><LoaderCircle className="spin" /> Aguardando adversário…</span>
+            <small>{matchmaking ? 'PAREAMENTO ATIVO' : 'SEU CÓDIGO'}</small><strong>{roomCode}</strong>
+            <div className="room-share-actions">
+              <Button variant="secondary" onClick={() => void copyCode()}><Copy /> {copied ? 'Copiado' : 'Copiar código'}</Button>
+              <a className="whatsapp-invite" href={inviteUrl} target="_blank" rel="noreferrer"><Share2 /> WhatsApp</a>
+            </div>
+            <span><LoaderCircle className="spin" /> {matchmaking ? 'Procurando adversário…' : 'Aguardando seu amigo…'}</span>
+            <Button variant="ghost" size="sm" onClick={onCancel}>Cancelar</Button>
           </div>
           <FriendsPanel authenticated={authenticated} signInPath={signInPath} roomCode={roomCode} onJoinRoom={(code) => setJoinCode(code)} />
         </>
       ) : (
         <>
           {!authenticated && <label className="guest-identity guest-identity-online"><span><CircleUserRound /><span><strong>Seu nome na sala</strong><small>O login continua opcional.</small></span></span><input value={guestName} onChange={(event) => setGuestName(event.target.value.replace(/[<>]/g, '').slice(0, 24))} minLength={2} maxLength={24} /></label>}
-          {authenticated ? (
-            <Button className="quick-match-button" onClick={onQuickMatch} disabled={phase === 'connecting'}>
-              {phase === 'connecting' ? <LoaderCircle className="spin" /> : <Target />} Partida rápida ranqueada
-            </Button>
-          ) : (
-            <a className="quick-signin" href={signInPath} target="_top"><LogIn /> Entre para buscar partida ranqueada</a>
-          )}
-          <div className="join-divider"><span /> partida com amigo <span /></div>
-          <Button className="create-room-button" onClick={onCreate} disabled={phase === 'connecting'}>
-            {phase === 'connecting' ? <LoaderCircle className="spin" /> : <Wifi />} Criar nova sala
-          </Button>
-          <div className="join-divider"><span /> ou use um código <span /></div>
-          <div className="join-row">
-            <input value={joinCode} onChange={(event) => setJoinCode(event.target.value)} placeholder="CÓDIGO" maxLength={6} aria-label="Código da sala" />
-            <Button onClick={onJoin} disabled={phase === 'connecting' || joinCode.length !== 6}>Entrar</Button>
-          </div>
+          {authenticated ? <Button className="quick-match-button" onClick={onQuickMatch} disabled={phase === 'connecting'}>{phase === 'connecting' ? <LoaderCircle className="spin" /> : <Target />} PARTIDA RÁPIDA</Button> : <a className="quick-signin" href={signInPath} target="_top"><LogIn /> Entre para buscar partida ranqueada</a>}
+          <div className="join-divider"><span /> jogar com amigo <span /></div>
+          <Button className="create-room-button" onClick={onCreate} disabled={phase === 'connecting'}>{phase === 'connecting' ? <LoaderCircle className="spin" /> : <Wifi />} Criar sala privada</Button>
+          <div className="join-divider"><span /> entrar com código <span /></div>
+          <div className="join-row"><input value={joinCode} onChange={(event) => setJoinCode(event.target.value)} placeholder="CÓDIGO" maxLength={6} aria-label="Código da sala" /><Button onClick={onJoin} disabled={phase === 'connecting' || joinCode.length !== 6}>Entrar</Button></div>
         </>
       )}
       {error && <div className="network-error"><WifiOff /> {error}</div>}
     </div>
+  );
+}
+
+function TeacherChat({ teacher, messages, question, setQuestion, busy, onAsk }: {
+  teacher: AiPersonality;
+  messages: TeacherChatMessage[];
+  question: string;
+  setQuestion: (value: string) => void;
+  busy: boolean;
+  onAsk: (help: 'explain' | 'hint' | 'orientation' | 'move', question?: string) => void;
+}) {
+  return (
+    <section className="teacher-chat">
+      <div className="section-heading"><span><MessageCircle /> Chat com {teacher === 'niclaus' ? 'Niclaus' : 'Damon'}</span><small>contexto do tabuleiro</small></div>
+      <div className="teacher-chat-actions">
+        <Button size="xs" variant="secondary" disabled={busy} onClick={() => onAsk('hint', 'Me dê apenas uma pista, sem revelar o lance.')}><Lightbulb /> Pista</Button>
+        <Button size="xs" variant="secondary" disabled={busy} onClick={() => onAsk('orientation', 'Qual ideia devo procurar nesta posição?')}><BookOpen /> Orientação</Button>
+        <Button size="xs" disabled={busy} onClick={() => onAsk('move', 'Mostre uma sugestão de lance e explique por que ela faz sentido.')}><Target /> Sugerir lance</Button>
+      </div>
+      <div className="teacher-chat-log">
+        {messages.length === 0 ? <p>Pergunte sobre a posição, uma regra, abertura ou estratégia. Sugestões de lance ficam somente na Academia.</p> : messages.map((message) => <p key={message.id}><strong>{message.author}:</strong> {message.text}</p>)}
+        {busy && <p><LoaderCircle className="spin" /> O professor está analisando…</p>}
+      </div>
+      <form className="teacher-chat-form" onSubmit={(event) => { event.preventDefault(); if (question.trim()) onAsk('explain'); }}>
+        <input value={question} onChange={(event) => setQuestion(event.target.value.slice(0, 500))} maxLength={500} placeholder="Pergunte: por que este lance foi ruim?" aria-label="Pergunta para o professor" />
+        <Button size="icon" type="submit" disabled={busy || !question.trim()} aria-label="Perguntar ao professor"><Send /></Button>
+      </form>
+    </section>
+  );
+}
+
+function GamePreferences(props: {
+  audioEnabled: boolean; setAudioEnabled: (value: boolean) => void;
+  showLegalMoves: boolean; setShowLegalMoves: (value: boolean) => void;
+  showCoordinates: boolean; setShowCoordinates: (value: boolean) => void;
+  showLastMove: boolean; setShowLastMove: (value: boolean) => void;
+  showThreats: boolean; setShowThreats: (value: boolean) => void;
+  beginnerGuide: boolean; setBeginnerGuide: (value: boolean) => void;
+  alertsEnabled: boolean; setAlertsEnabled: (value: boolean) => void;
+  animationsEnabled: boolean; setAnimationsEnabled: (value: boolean) => void;
+}) {
+  const rows: Array<[string, boolean, (value: boolean) => void, ReactNode]> = [
+    ['Sons', props.audioEnabled, props.setAudioEnabled, props.audioEnabled ? <Volume2 /> : <VolumeX />],
+    ['Casas legais', props.showLegalMoves, props.setShowLegalMoves, <Target />],
+    ['Coordenadas', props.showCoordinates, props.setShowCoordinates, <Gamepad2 />],
+    ['Último lance', props.showLastMove, props.setShowLastMove, <History />],
+    ['Alertas de peças', props.showThreats, props.setShowThreats, <Bell />],
+    ['Guia para iniciantes', props.beginnerGuide, props.setBeginnerGuide, <BookOpen />],
+    ['Alertas da partida', props.alertsEnabled, props.setAlertsEnabled, props.alertsEnabled ? <Bell /> : <BellOff />],
+    ['Animações', props.animationsEnabled, props.setAnimationsEnabled, <Sparkles />],
+  ];
+  return (
+    <details className="game-preferences">
+      <summary><span><Settings2 /> Configurações da partida</span><small>alterar sem sair</small></summary>
+      <div className="game-preferences-body">{rows.map(([label, enabled, setter, icon]) => <div className="preference-row" key={label}><span>{icon} {label}</span><button type="button" className={enabled ? 'is-on' : ''} onClick={() => setter(!enabled)}>{enabled ? 'Ligado' : 'Desligado'}</button></div>)}</div>
+    </details>
+  );
+}
+
+type NotificationItem = { id: string; kind: string; title: string; message: string; created_at: number; read_at: number | null };
+function NotificationsMenu() {
+  const [items, setItems] = useState<NotificationItem[]>([]);
+  const [unread, setUnread] = useState(0);
+  const load = useCallback(async () => {
+    try {
+      const response = await fetch('/api/notifications', { cache: 'no-store' });
+      const body = await response.json() as { notifications?: NotificationItem[]; unread?: number };
+      if (response.ok) {
+        setItems(body.notifications ?? []);
+        setUnread(Number(body.unread ?? 0));
+      }
+    } catch {
+      // Notifications are non-blocking.
+    }
+  }, []);
+  useEffect(() => {
+    void load();
+    const timer = window.setInterval(() => { if (document.visibilityState === 'visible') void load(); }, 20_000);
+    return () => window.clearInterval(timer);
+  }, [load]);
+  const readAll = async () => {
+    await fetch('/api/notifications', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'read-all' }) }).catch(() => undefined);
+    setUnread(0);
+    setItems((current) => current.map((item) => ({ ...item, read_at: item.read_at ?? Date.now() })));
+  };
+  return (
+    <details className="notification-menu" onToggle={(event) => { if ((event.currentTarget as HTMLDetailsElement).open && unread > 0) void readAll(); }}>
+      <summary aria-label={`${unread} notificações não lidas`}><Bell />{unread > 0 && <b>{Math.min(unread, 9)}</b>}</summary>
+      <div>{items.length === 0 ? <p>Nenhuma novidade.</p> : items.slice(0, 8).map((item) => <article key={item.id}><strong>{item.title}</strong><p>{item.message}</p><small>{new Date(item.created_at).toLocaleString('pt-BR')}</small></article>)}</div>
+    </details>
   );
 }
 
@@ -1650,11 +1852,5 @@ function MoveHistory({ moves }: { moves: Move[] }) {
     if (move.color === 'w') pairs[pairIndex].white = move;
     else pairs[pairIndex].black = move;
   });
-  return (
-    <div className="move-history">
-      {pairs.map((pair) => (
-        <div key={pair.number}><span>{pair.number}.</span><strong>{pair.white?.san ?? '…'}</strong><strong>{pair.black?.san ?? ''}</strong></div>
-      ))}
-    </div>
-  );
+  return <div className="move-history">{pairs.map((pair) => <div key={pair.number}><span>{pair.number}.</span><strong>{pair.white?.san ?? '…'}</strong><strong>{pair.black?.san ?? ''}</strong></div>)}</div>;
 }
