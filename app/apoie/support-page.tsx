@@ -20,6 +20,8 @@ function legacyCopy(text: string): boolean {
   textarea.setSelectionRange(0, text.length);
   let copied = false;
   try {
+    // Fallback only for browsers where the modern Clipboard API is unavailable.
+    // oxlint-disable-next-line typescript/no-deprecated
     copied = document.execCommand('copy');
   } catch {
     copied = false;
