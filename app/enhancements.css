@@ -1,0 +1,107 @@
+/* NoutyChess.pro product enhancements. Kept separate from the legacy stylesheet so the final redesign can evolve safely. */
+
+.board-wood .square-light { background: #e6cfad; }
+.board-wood .square-dark { background: #9a6844; }
+.board-wood .board-shell { box-shadow: 0 22px 70px rgba(70, 38, 16, .28), inset 0 0 0 1px rgba(255,255,255,.08); }
+
+.pieces-modern .piece { font-family: Georgia, 'Times New Roman', serif; font-weight: 700; transform: scale(.96); filter: drop-shadow(0 2px 1px rgba(0,0,0,.28)); }
+.pieces-minimal .piece { font-family: 'Times New Roman', serif; font-weight: 400; transform: scale(.9); filter: none; }
+
+.mode-card-ranked,
+.quick-match-button,
+.legend-club-card,
+.coach-card {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.mode-card-ranked::before,
+.quick-match-button::before,
+.legend-club-card::before,
+.coach-card::before {
+  content: '';
+  position: absolute;
+  inset: -80% -30%;
+  pointer-events: none;
+  z-index: -1;
+  background: linear-gradient(115deg, transparent 38%, rgba(255,255,255,.12) 48%, rgba(255,255,255,.22) 50%, rgba(255,255,255,.08) 53%, transparent 63%);
+  transform: translateX(-55%) rotate(4deg);
+  animation: nouty-light-sweep 7.5s ease-in-out infinite;
+}
+
+.mode-card-ranked { box-shadow: 0 16px 50px rgba(31, 186, 142, .13), inset 0 0 0 1px rgba(93, 246, 199, .12); }
+.legend-club-card::before { background: linear-gradient(115deg, transparent 38%, rgba(255,224,133,.06) 47%, rgba(255,213,103,.2) 50%, rgba(255,224,133,.06) 54%, transparent 64%); animation-duration: 9s; }
+.coach-card::before { animation-duration: 11s; opacity: .65; }
+
+@keyframes nouty-light-sweep {
+  0%, 28% { transform: translateX(-60%) rotate(4deg); opacity: 0; }
+  38% { opacity: 1; }
+  58% { transform: translateX(60%) rotate(4deg); opacity: .85; }
+  70%, 100% { transform: translateX(60%) rotate(4deg); opacity: 0; }
+}
+
+.whatsapp-invite,
+.whatsapp-share-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .5rem;
+  border-radius: .8rem;
+  font-weight: 750;
+  text-decoration: none;
+}
+
+.whatsapp-invite {
+  min-height: 2.65rem;
+  padding: .65rem .9rem;
+  border: 1px solid rgba(91, 231, 151, .28);
+  background: rgba(31, 162, 93, .12);
+  color: #dfffea;
+}
+
+.whatsapp-invite:hover { background: rgba(31, 162, 93, .2); }
+
+.room-share-actions { display: grid; grid-template-columns: 1fr 1fr; gap: .55rem; margin-top: .65rem; }
+.live-presence { display: inline-flex; align-items: center; gap: .45rem; font-size: .76rem; color: var(--muted-foreground); }
+.live-presence i { width: .48rem; height: .48rem; border-radius: 999px; background: #4ade80; box-shadow: 0 0 14px rgba(74,222,128,.65); }
+
+.friend-results { display: grid; gap: .45rem; margin: .55rem 0; }
+.friend-result { display: grid; grid-template-columns: auto 1fr auto; gap: .55rem; align-items: center; padding: .55rem .65rem; border: 1px solid rgba(255,255,255,.08); border-radius: .75rem; background: rgba(255,255,255,.025); }
+.friend-result > span:first-child { font-size: 1.35rem; }
+.friend-result strong, .friend-result small { display: block; }
+.friend-result small { color: var(--muted-foreground); }
+.presence-dot { display: inline-block; width: .42rem; height: .42rem; margin-right: .3rem; border-radius: 50%; background: #6b7280; }
+.presence-dot.online { background: #4ade80; box-shadow: 0 0 9px rgba(74,222,128,.55); }
+
+.game-preferences { border: 1px solid rgba(255,255,255,.08); border-radius: .85rem; background: rgba(255,255,255,.025); }
+.game-preferences summary { cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: .8rem; padding: .7rem .8rem; font-weight: 750; }
+.game-preferences-body { display: grid; gap: .55rem; padding: 0 .8rem .8rem; }
+.preference-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; font-size: .82rem; }
+.preference-row button { min-width: 4.2rem; border-radius: 999px; border: 1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.04); padding: .32rem .6rem; font-weight: 700; }
+.preference-row button.is-on { background: rgba(68, 214, 167, .16); border-color: rgba(68,214,167,.3); }
+
+.teacher-chat { display: grid; gap: .6rem; margin-top: .75rem; padding: .75rem; border: 1px solid rgba(125, 126, 255, .16); border-radius: .9rem; background: rgba(84, 79, 163, .07); }
+.teacher-chat-log { max-height: 11rem; overflow: auto; display: grid; gap: .45rem; }
+.teacher-chat-log p { margin: 0; font-size: .82rem; line-height: 1.45; }
+.teacher-chat-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: .4rem; }
+.teacher-chat-form { display: grid; grid-template-columns: 1fr auto; gap: .4rem; }
+.teacher-chat-form input { min-width: 0; }
+
+.legal-links { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: .75rem; }
+.legal-links a { color: inherit; text-decoration: underline; text-underline-offset: .2rem; }
+
+.app-credit nav { display: flex; flex-wrap: wrap; align-items: center; gap: .8rem; }
+.app-credit .footer-whatsapp { color: #bafbd2; }
+
+@media (max-width: 700px) {
+  .room-share-actions { grid-template-columns: 1fr; }
+  .teacher-chat-actions { grid-template-columns: 1fr; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mode-card-ranked::before,
+  .quick-match-button::before,
+  .legend-club-card::before,
+  .coach-card::before { animation: none !important; opacity: 0 !important; }
+}
