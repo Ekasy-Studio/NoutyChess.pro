@@ -31,6 +31,8 @@
 }
 
 .mode-card-ranked { box-shadow: 0 16px 50px rgba(31, 186, 142, .13), inset 0 0 0 1px rgba(93, 246, 199, .12); }
+.mode-card-ranked strong { letter-spacing: .02em; }
+.mode-card-ranked > span:nth-child(2) > small:first-child { color: #72e7bd; font-size: .66rem; font-weight: 900; letter-spacing: .12em; }
 .legend-club-card::before { background: linear-gradient(115deg, transparent 38%, rgba(255,224,133,.06) 47%, rgba(255,213,103,.2) 50%, rgba(255,224,133,.06) 54%, transparent 64%); animation-duration: 9s; }
 .coach-card::before { animation-duration: 11s; opacity: .65; }
 
@@ -66,6 +68,8 @@
 .live-presence { display: inline-flex; align-items: center; gap: .45rem; font-size: .76rem; color: var(--muted-foreground); }
 .live-presence i { width: .48rem; height: .48rem; border-radius: 999px; background: #4ade80; box-shadow: 0 0 14px rgba(74,222,128,.65); }
 
+.friend-search { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: .55rem; }
+.friend-search > svg { width: 1rem; opacity: .65; }
 .friend-results { display: grid; gap: .45rem; margin: .55rem 0; }
 .friend-result { display: grid; grid-template-columns: auto 1fr auto; gap: .55rem; align-items: center; padding: .55rem .65rem; border: 1px solid rgba(255,255,255,.08); border-radius: .75rem; background: rgba(255,255,255,.025); }
 .friend-result > span:first-child { font-size: 1.35rem; }
@@ -76,27 +80,59 @@
 
 .game-preferences { border: 1px solid rgba(255,255,255,.08); border-radius: .85rem; background: rgba(255,255,255,.025); }
 .game-preferences summary { cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: .8rem; padding: .7rem .8rem; font-weight: 750; }
+.game-preferences summary span { display: inline-flex; align-items: center; gap: .45rem; }
+.game-preferences summary small { color: var(--muted-foreground); font-weight: 500; }
 .game-preferences-body { display: grid; gap: .55rem; padding: 0 .8rem .8rem; }
 .preference-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; font-size: .82rem; }
-.preference-row button { min-width: 4.2rem; border-radius: 999px; border: 1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.04); padding: .32rem .6rem; font-weight: 700; }
+.preference-row > span { display: inline-flex; align-items: center; gap: .45rem; }
+.preference-row > span svg { width: .95rem; }
+.preference-row button { min-width: 4.8rem; border-radius: 999px; border: 1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.04); padding: .32rem .6rem; font-weight: 700; }
 .preference-row button.is-on { background: rgba(68, 214, 167, .16); border-color: rgba(68,214,167,.3); }
 
 .teacher-chat { display: grid; gap: .6rem; margin-top: .75rem; padding: .75rem; border: 1px solid rgba(125, 126, 255, .16); border-radius: .9rem; background: rgba(84, 79, 163, .07); }
 .teacher-chat-log { max-height: 11rem; overflow: auto; display: grid; gap: .45rem; }
 .teacher-chat-log p { margin: 0; font-size: .82rem; line-height: 1.45; }
+.teacher-chat-log svg { display: inline; width: .9rem; }
 .teacher-chat-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: .4rem; }
 .teacher-chat-form { display: grid; grid-template-columns: 1fr auto; gap: .4rem; }
 .teacher-chat-form input { min-width: 0; }
+
+.notification-menu { position: relative; }
+.notification-menu summary { position: relative; display: grid; place-items: center; width: 2.35rem; height: 2.35rem; border-radius: .75rem; cursor: pointer; list-style: none; border: 1px solid rgba(255,255,255,.08); background: rgba(255,255,255,.03); }
+.notification-menu summary::-webkit-details-marker { display: none; }
+.notification-menu summary svg { width: 1rem; }
+.notification-menu summary b { position: absolute; right: -.2rem; top: -.2rem; min-width: 1.05rem; height: 1.05rem; border-radius: 99px; display: grid; place-items: center; font-size: .62rem; background: #e6b94c; color: #17120a; }
+.notification-menu > div { position: absolute; z-index: 80; right: 0; top: calc(100% + .55rem); width: min(22rem, calc(100vw - 2rem)); max-height: 24rem; overflow: auto; padding: .5rem; border: 1px solid rgba(255,255,255,.1); border-radius: .9rem; background: rgba(13,16,21,.98); box-shadow: 0 22px 70px rgba(0,0,0,.42); }
+.notification-menu article { padding: .65rem; border-bottom: 1px solid rgba(255,255,255,.07); }
+.notification-menu article:last-child { border-bottom: 0; }
+.notification-menu article strong, .notification-menu article p, .notification-menu article small { display: block; }
+.notification-menu article p { margin: .2rem 0; font-size: .78rem; }
+.notification-menu article small { color: var(--muted-foreground); font-size: .68rem; }
+
+.onboarding-options { display: grid; gap: .65rem; }
+.onboarding-options button { display: grid; grid-template-columns: auto 1fr; grid-template-areas: 'icon title' 'icon copy'; column-gap: .75rem; text-align: left; padding: .85rem; border: 1px solid rgba(255,255,255,.09); border-radius: .9rem; background: rgba(255,255,255,.03); }
+.onboarding-options button:hover { border-color: rgba(89,218,177,.32); background: rgba(89,218,177,.06); }
+.onboarding-options button svg { grid-area: icon; margin-top: .15rem; }
+.onboarding-options button strong { grid-area: title; }
+.onboarding-options button small { grid-area: copy; color: var(--muted-foreground); }
 
 .legal-links { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: .75rem; }
 .legal-links a { color: inherit; text-decoration: underline; text-underline-offset: .2rem; }
 
 .app-credit nav { display: flex; flex-wrap: wrap; align-items: center; gap: .8rem; }
+.app-credit nav a { display: inline-flex; align-items: center; gap: .3rem; }
 .app-credit .footer-whatsapp { color: #bafbd2; }
+
+.motion-reduced *,
+.motion-reduced *::before,
+.motion-reduced *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; scroll-behavior: auto !important; }
 
 @media (max-width: 700px) {
   .room-share-actions { grid-template-columns: 1fr; }
   .teacher-chat-actions { grid-template-columns: 1fr; }
+  .friend-result { grid-template-columns: auto 1fr; }
+  .friend-result > :last-child { grid-column: 2; justify-self: start; }
+  .notification-menu > div { position: fixed; right: 1rem; top: 4.5rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {
