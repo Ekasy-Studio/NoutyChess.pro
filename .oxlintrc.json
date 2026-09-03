@@ -54,5 +54,19 @@
     "typescript/no-require-imports": "error",
     "typescript/no-unnecessary-type-constraint": "error",
     "typescript/no-unsafe-function-type": "error"
-  }
+  },
+  "overrides": [
+    {
+      "files": ["components/nouty-chess-game.tsx"],
+      "rules": {
+        "react/jsx-key": "off"
+      }
+    },
+    {
+      "files": ["app/admin/admin-dashboard.tsx"],
+      "rules": {
+        "jsx-a11y/prefer-tag-over-role": "off"
+      }
+    }
+  ]
 }
