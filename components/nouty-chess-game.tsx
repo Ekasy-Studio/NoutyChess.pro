@@ -223,6 +223,7 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
   const [clocks, setClocks] = useState({ w: 600, b: 600 });
   const [orientation, setOrientation] = useState<Color>('w');
   const [audioEnabled, setAudioEnabled] = useState(true);
+  const [audioVolume, setAudioVolume] = useState(0.65);
   const [showLegalMoves, setShowLegalMoves] = useState(true);
   const [showCoordinates, setShowCoordinates] = useState(true);
   const [showLastMove, setShowLastMove] = useState(true);
@@ -336,7 +337,7 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
         oscillator.frequency.value = frequency;
         const start = context.currentTime + index * 0.045;
         gain.gain.setValueAtTime(0.0001, start);
-        gain.gain.exponentialRampToValueAtTime(0.045, start + 0.012);
+        gain.gain.exponentialRampToValueAtTime(Math.max(0.002, 0.045 * audioVolume), start + 0.012);
         gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.12);
         oscillator.connect(gain).connect(context.destination);
         oscillator.start(start);
@@ -345,7 +346,7 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
     } catch {
       // Audio is optional and must never block a move.
     }
-  }, [audioEnabled]);
+  }, [audioEnabled, audioVolume]);
 
   const finishFromPosition = useCallback(() => {
     const result = evaluateOutcome(chessRef.current);
@@ -826,6 +827,7 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
         if (stored.teacher === 'niclaus' || stored.teacher === 'damon') setTeacher(stored.teacher);
         if (stored.timeControl === 'blitz' || stored.timeControl === 'rapid' || stored.timeControl === 'classic') setTimeControl(stored.timeControl);
         if (typeof stored.audioEnabled === 'boolean') setAudioEnabled(stored.audioEnabled);
+        if (typeof stored.audioVolume === 'number' && Number.isFinite(stored.audioVolume)) setAudioVolume(Math.max(0.1, Math.min(1, stored.audioVolume)));
         if (typeof stored.showLegalMoves === 'boolean') setShowLegalMoves(stored.showLegalMoves);
         if (typeof stored.showCoordinates === 'boolean') setShowCoordinates(stored.showCoordinates);
         if (typeof stored.showLastMove === 'boolean') setShowLastMove(stored.showLastMove);
@@ -857,8 +859,8 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('noutychess-preferences-v1', JSON.stringify({ difficulty, teacher, timeControl, audioEnabled, showLegalMoves, showCoordinates, showLastMove, showThreats, beginnerGuide, alertsEnabled, animationsEnabled, guestName }));
-  }, [alertsEnabled, animationsEnabled, audioEnabled, beginnerGuide, difficulty, guestName, showCoordinates, showLastMove, showLegalMoves, showThreats, teacher, timeControl]);
+    localStorage.setItem('noutychess-preferences-v1', JSON.stringify({ difficulty, teacher, timeControl, audioEnabled, audioVolume, showLegalMoves, showCoordinates, showLastMove, showThreats, beginnerGuide, alertsEnabled, animationsEnabled, guestName }));
+  }, [alertsEnabled, animationsEnabled, audioEnabled, audioVolume, beginnerGuide, difficulty, guestName, showCoordinates, showLastMove, showLegalMoves, showThreats, teacher, timeControl]);
 
   useEffect(() => {
     let visitorId = localStorage.getItem('noutychess-visitor-id');
@@ -1215,6 +1217,8 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
                   <GamePreferences
                     audioEnabled={audioEnabled}
                     setAudioEnabled={setAudioEnabled}
+                    audioVolume={audioVolume}
+                    setAudioVolume={setAudioVolume}
                     showLegalMoves={showLegalMoves}
                     setShowLegalMoves={setShowLegalMoves}
                     showCoordinates={showCoordinates}
@@ -1783,6 +1787,7 @@ function TeacherChat({ teacher, messages, question, setQuestion, busy, onAsk }: 
 
 function GamePreferences(props: {
   audioEnabled: boolean; setAudioEnabled: (value: boolean) => void;
+  audioVolume: number; setAudioVolume: (value: number) => void;
   showLegalMoves: boolean; setShowLegalMoves: (value: boolean) => void;
   showCoordinates: boolean; setShowCoordinates: (value: boolean) => void;
   showLastMove: boolean; setShowLastMove: (value: boolean) => void;
@@ -1804,7 +1809,10 @@ function GamePreferences(props: {
   return (
     <details className="game-preferences">
       <summary><span><Settings2 /> Configurações da partida</span><small>alterar sem sair</small></summary>
-      <div className="game-preferences-body">{rows.map(([label, enabled, setter, icon]) => <div className="preference-row" key={label}><span>{icon} {label}</span><button type="button" className={enabled ? 'is-on' : ''} onClick={() => setter(!enabled)}>{enabled ? 'Ligado' : 'Desligado'}</button></div>)}</div>
+      <div className="game-preferences-body">
+        <label className="preference-volume"><span>Volume</span><input type="range" min="10" max="100" step="5" value={Math.round(props.audioVolume * 100)} onChange={(event) => props.setAudioVolume(Math.max(0.1, Math.min(1, Number(event.target.value) / 100)))} /><output>{Math.round(props.audioVolume * 100)}%</output></label>
+        {rows.map(([label, enabled, setter, icon]) => <div className="preference-row" key={label}><span>{icon} {label}</span><button type="button" className={enabled ? 'is-on' : ''} onClick={() => setter(!enabled)}>{enabled ? 'Ligado' : 'Desligado'}</button></div>)}
+      </div>
     </details>
   );
 }
