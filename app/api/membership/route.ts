@@ -36,10 +36,27 @@ export async function POST() {
     await ensureSchema();
     const profile = await getOrCreateProfile(user);
     const now = Date.now();
+    if (profile.bannedUntil && profile.bannedUntil > now) {
+      return NextResponse.json({ error: 'Contas suspensas não podem solicitar acesso ao Clube.' }, { status: 403 });
+    }
+
     const active = profile.membershipTier === 'legend' && Boolean(profile.memberUntil && profile.memberUntil > now);
     if (active) return NextResponse.json({ ok: true, active: true, status: 'activated', memberUntil: profile.memberUntil });
 
     const d1 = getD1();
+    const current = await d1.prepare('SELECT status, created_at, updated_at FROM membership_interest WHERE user_id = ?')
+      .bind(user.userId).first<{ status: string; created_at: number; updated_at: number }>();
+
+    if (current?.status === 'interested') {
+      return NextResponse.json({ ok: true, interested: true, status: current.status, requestedAt: current.created_at, updatedAt: current.updated_at });
+    }
+    if (current?.status === 'declined' && now - current.updated_at < 24 * 60 * 60_000) {
+      return NextResponse.json({
+        error: 'Sua solicitação foi analisada recentemente. Você poderá solicitar novamente mais tarde.',
+        retryAfter: current.updated_at + 24 * 60 * 60_000,
+      }, { status: 429 });
+    }
+
     await d1.prepare(`INSERT INTO membership_interest (user_id, status, created_at, updated_at) VALUES (?, 'interested', ?, ?)
       ON CONFLICT(user_id) DO UPDATE SET status = 'interested', updated_at = excluded.updated_at`)
       .bind(user.userId, now, now).run();
