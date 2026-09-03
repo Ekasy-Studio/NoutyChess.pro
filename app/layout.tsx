@@ -2,25 +2,34 @@ import type { Metadata } from 'next';
 import './globals.css';
 import './enhancements.css';
 
+const publicUrl = 'https://noutychess.ekasy-studio.com.br';
+
 export const metadata: Metadata = {
-  title: 'NoutyChess.pro — Jogue melhor',
-  description: 'Xadrez moderno, competitivo e acessível da Ekasy Studio, fundada por Thiago Roger Caldeira De Almeida.',
-  metadataBase: new URL('https://noutychess.pro'),
+  title: {
+    default: 'NoutyChess',
+    template: '%s | NoutyChess',
+  },
+  description: 'Xadrez moderno, competitivo e acessível da Ekasy Studio.',
+  metadataBase: new URL(publicUrl),
+  alternates: { canonical: '/' },
   manifest: '/manifest.webmanifest',
-  creator: 'Thiago Roger Caldeira De Almeida',
+  creator: 'Ekasy Studio',
   publisher: 'Ekasy Studio',
-  authors: [{ name: 'Thiago Roger Caldeira De Almeida', url: 'https://ekasystudio.com.br' }],
+  authors: [{ name: 'Ekasy Studio', url: 'https://ekasy-studio.com.br' }],
+  applicationName: 'NoutyChess',
   icons: { icon: '/icon.svg', apple: '/icon.svg' },
   openGraph: {
-    title: 'NoutyChess.pro — Jogue melhor',
-    description: 'Seu próximo grande lance começa aqui. Um projeto da Ekasy Studio.',
+    title: 'NoutyChess',
+    description: 'Seu próximo grande lance começa aqui. Jogue, evolua e desafie seus amigos.',
     type: 'website',
-    images: [{ url: '/og.jpg', width: 1200, height: 630, alt: 'NoutyChess.pro — Projeto da Ekasy Studio.' }],
+    siteName: 'NoutyChess',
+    url: '/',
+    images: [{ url: '/og.jpg', width: 1200, height: 630, alt: 'NoutyChess' }],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'NoutyChess.pro — Jogue melhor',
-    description: 'Seu próximo grande lance começa aqui. Um projeto da Ekasy Studio.',
+    title: 'NoutyChess',
+    description: 'Seu próximo grande lance começa aqui.',
     images: ['/og.jpg'],
   },
 };
@@ -28,13 +37,22 @@ export const metadata: Metadata = {
 const organizationSchema = {
   '@context': 'https://schema.org',
   '@type': 'Organization',
-  '@id': 'https://ekasystudio.com.br/#organization',
+  '@id': 'https://ekasy-studio.com.br/#organization',
   name: 'Ekasy Studio',
-  url: 'https://ekasystudio.com.br/',
-  founder: {
-    '@type': 'Person',
-    name: 'Thiago Roger Caldeira De Almeida',
-    url: 'https://ekasystudio.com.br/fundador',
+  url: 'https://ekasy-studio.com.br/',
+};
+
+const gameSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'VideoGame',
+  name: 'NoutyChess',
+  url: publicUrl,
+  applicationCategory: 'Game',
+  operatingSystem: 'Web',
+  publisher: {
+    '@type': 'Organization',
+    name: 'Ekasy Studio',
+    url: 'https://ekasy-studio.com.br/',
   },
 };
 
@@ -44,7 +62,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body>
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
+          dangerouslySetInnerHTML={{ __html: JSON.stringify([organizationSchema, gameSchema]) }}
         />
         {children}
       </body>
