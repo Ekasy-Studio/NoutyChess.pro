@@ -1,0 +1,73 @@
+name: One-time NoutyChess P0 finalization
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - scripts/finalize-p0.mjs
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.13.0'
+          cache: npm
+
+      - name: Apply P0 source fixes
+        run: node scripts/finalize-p0.mjs
+
+      - name: Patch React RSC security release
+        run: npm install --save-exact react@19.2.8 react-dom@19.2.8 react-server-dom-webpack@19.2.8
+
+      - name: Production dependency audit report
+        run: npm audit --omit=dev --json > audit-production.json || true
+
+      - name: Upload audit report
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-audit
+          path: audit-production.json
+          retention-days: 1
+
+      - name: Block High or Critical production vulnerabilities
+        run: |
+          node -e "const fs=require('fs'); const r=JSON.parse(fs.readFileSync('audit-production.json','utf8')); const v=r.metadata?.vulnerabilities||{}; console.log(v); if ((v.high||0)+(v.critical||0)>0) process.exit(1)"
+
+      - name: Service worker syntax
+        run: node --check public/sw.js
+
+      - name: Tests
+        run: npm test
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Production build
+        run: npm run build
+
+      - name: Remove diagnostic artifact source
+        run: rm -f audit-production.json
+
+      - name: Commit validated P0 fixes
+        run: |
+          if git diff --quiet; then
+            echo "No changes needed."
+            exit 0
+          fi
+          git config user.name "Ekasy automation"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git commit -m "Finaliza correções P0 de segurança e domínio"
+          git push
