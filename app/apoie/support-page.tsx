@@ -64,14 +64,14 @@ export function SupportPage({ pixKey }: { pixKey: string }) {
   return (
     <main className="support-page">
       <header className="support-header">
-        <Link className="brand" href="/"><span className="brand-mark">♘</span><span><strong>NoutyChess.pro</strong><small>Ekasy-Studio</small></span></Link>
+        <Link className="brand" href="/"><span className="brand-mark">♘</span><span><strong>NoutyChess</strong><small>Ekasy Studio</small></span></Link>
         <Link href="/">Voltar ao tabuleiro</Link>
       </header>
       <section className="support-hero">
         <div className="support-copy">
           <span className="eyebrow"><Heart /> Apoie um jogo independente</span>
-          <h1>Ajude a tornar o NoutyChess.pro ainda mais lendário.</h1>
-          <p>Seu apoio ajuda a Ekasy-Studio a manter servidores, evoluir a inteligência dos professores, criar novas temporadas e produzir cosméticos com cada vez mais qualidade.</p>
+          <h1>Ajude a tornar o NoutyChess ainda mais lendário.</h1>
+          <p>Seu apoio ajuda a Ekasy Studio a manter a infraestrutura, evoluir os professores, criar novas temporadas e produzir cosméticos com cada vez mais qualidade.</p>
           <div className="support-values">
             <span><Sparkles /> Evolução contínua</span><span><ShieldCheck /> Competição justa</span><span><Heart /> Estúdio independente</span>
           </div>
@@ -92,7 +92,7 @@ export function SupportPage({ pixKey }: { pixKey: string }) {
           <p className="pix-note">O apoio é voluntário e não concede vantagem competitiva.</p>
         </aside>
       </section>
-      <footer className="studio-credit"><strong>Ekasy-Studio</strong><span>Fundada por Thiago Roger</span></footer>
+      <footer className="studio-credit"><strong>Ekasy Studio</strong><span>NoutyChess · produto independente</span></footer>
     </main>
   );
 }
