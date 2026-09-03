@@ -8,7 +8,7 @@ import { AdminDashboard } from './admin-dashboard';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
-  title: 'Área restrita | NoutyChess.pro',
+  title: 'Área restrita',
   robots: { index: false, follow: false, noarchive: true, nocache: true },
 };
 
