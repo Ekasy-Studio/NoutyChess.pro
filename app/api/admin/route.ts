@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { ensureSchema, getD1 } from '@/db';
-import { AdminAccessError, requireAdmin } from '@/lib/admin-auth';
+import { AdminAccessError, requireAdmin, requireSameOriginAdminMutation } from '@/lib/admin-auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -82,6 +82,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    requireSameOriginAdminMutation(request);
     const admin = await requireAdmin();
     await ensureSchema();
     const body = await request.json() as Record<string, unknown>;
