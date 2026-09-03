@@ -1,8 +1,9 @@
 {
-  "name": "NoutyChess.pro",
-  "short_name": "NoutyChess.pro",
-  "description": "Xadrez moderno para jogar contra a IA, localmente ou online.",
+  "name": "NoutyChess",
+  "short_name": "NoutyChess",
+  "description": "Xadrez moderno, competitivo e social da Ekasy Studio.",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#102326",
   "theme_color": "#102326",
