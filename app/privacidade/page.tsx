@@ -3,8 +3,8 @@ import { Database, Eye, LockKeyhole, ShieldCheck, UserRoundCheck } from 'lucide-
 import Link from 'next/link';
 
 export const metadata: Metadata = {
-  title: 'Privacidade | NoutyChess.pro',
-  description: 'Como o NoutyChess.pro utiliza dados necessários para contas, partidas e segurança.',
+  title: 'Privacidade',
+  description: 'Como o NoutyChess utiliza dados necessários para contas, partidas e segurança.',
 };
 
 const sections = [
@@ -18,11 +18,11 @@ const sections = [
 export default function PrivacyPage() {
   return (
     <main className="rules-page">
-      <header className="support-header"><Link className="brand" href="/"><span className="brand-mark">♘</span><span><strong>NoutyChess.pro</strong><small>Privacidade</small></span></Link><Link href="/">Voltar ao jogo</Link></header>
-      <section className="rules-hero"><span><ShieldCheck /> PRIVACIDADE</span><h1>Dados somente quando ajudam o jogo a funcionar.</h1><p>Transparência sobre as informações usadas para contas, competição, comunidade e segurança.</p><small>Versão 1.0 · 2 de setembro de 2026</small></section>
+      <header className="support-header"><Link className="brand" href="/"><span className="brand-mark">♘</span><span><strong>NoutyChess</strong><small>Privacidade</small></span></Link><Link href="/">Voltar ao jogo</Link></header>
+      <section className="rules-hero"><span><ShieldCheck /> PRIVACIDADE</span><h1>Dados somente quando ajudam o jogo a funcionar.</h1><p>Transparência sobre as informações usadas para contas, competição, comunidade e segurança.</p><small>Versão 1.0 · setembro de 2026</small></section>
       <section className="rules-grid">{sections.map((section) => <article key={section.title}><span>{section.icon}</span><h2>{section.title}</h2><p>{section.text}</p></article>)}</section>
       <section className="rules-summary"><LockKeyhole /><div><h2>Não compartilhe credenciais</h2><p>Nunca envie senha, token, código de autenticação ou informação financeira pelo chat da comunidade.</p></div></section>
-      <footer className="studio-credit"><strong>© 2026 Ekasy-Studio</strong><span>NoutyChess.pro</span></footer>
+      <footer className="studio-credit"><strong>© 2026 Ekasy Studio</strong><span>NoutyChess</span></footer>
     </main>
   );
 }
