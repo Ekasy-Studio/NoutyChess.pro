@@ -1,2 +1,6 @@
 # Copie para .dev.vars apenas no ambiente local. Não faça commit de .dev.vars.
+# Em produção, configure os mesmos valores como secrets do Site.
 NOUTY_ADMIN_EMAILS=administrador@exemplo.com
+# Opcional e recomendado: IDs autenticados permitidos, separados por vírgula.
+# Quando definido, e-mail E user ID precisam estar autorizados.
+NOUTY_ADMIN_USER_IDS=
