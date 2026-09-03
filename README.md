@@ -1,32 +1,31 @@
-# NoutyChess.pro
+# NoutyChess
 
-Plataforma de xadrez competitiva feita pela **Ekasy Studio**, fundada por **Thiago Roger Caldeira De Almeida**.
+Plataforma de xadrez competitiva da **Ekasy Studio**.
 
-**Site oficial da Ekasy Studio:** https://ekasystudio.com.br
+**Endereço público planejado:** https://noutychess.ekasy-studio.com.br
 
-A **Ekasy Studio** é um estúdio independente de desenvolvimento de jogos, aplicativos, sites e projetos digitais. Seu fundador é **Thiago Roger Caldeira De Almeida**.
-
-O projeto reúne partidas locais, Academia com IA, multiplayer por código ou pareamento, ranking Elo, recompensas, perfis, amigos, chat moderado, Clube Lendário e um painel administrativo completo. A interface foi desenhada para computador e celular.
+O projeto reúne partidas locais, Academia com professores digitais, multiplayer por código ou pareamento, ranking Elo, recompensas, perfis, amigos, comunidade, Clube Lendário e painel administrativo. A experiência é desenvolvida para computador e celular.
 
 ## Identidade oficial
 
 - **Organização:** Ekasy Studio
-- **Fundador:** Thiago Roger Caldeira De Almeida
-- **Domínio oficial:** https://ekasystudio.com.br
-- **Projeto:** NoutyChess.pro
+- **Produto:** NoutyChess
+- **Domínio do jogo:** https://noutychess.ekasy-studio.com.br
+- **Domínio da organização:** https://ekasy-studio.com.br
+- **Repositório:** proprietário; acesso ao código não concede licença para copiar, redistribuir ou comercializar o produto.
 
 ## Principais recursos
 
-- Regras oficiais com roque, en passant, promoção, xeque, mate e empates.
-- Dicas de movimentos, última jogada, alertas de peças ameaçadas e setas/marcações locais.
-- Professores offline Niclaus e Damon, com quatro dificuldades e cálculo em Web Worker.
+- Regras de xadrez com roque, en passant, promoção, xeque, mate e empates.
+- Dicas visuais opcionais, última jogada, coordenadas, alertas e recursos para iniciantes.
+- Professores Niclaus e Damon com base de conhecimento e ajuda educacional nos modos permitidos.
 - Multiplayer P2P, salas com código, pareamento, convites e chat por sala.
-- Elo, divisões, XP, níveis, moedas, sequência, insígnias e placar.
-- Loja de tabuleiros e peças cosméticas, sem vantagem competitiva.
+- Elo, divisões, XP, níveis, moedas, sequência, insígnias e ranking.
+- Tabuleiros e peças cosméticas, sem vantagem competitiva.
 - Perfil personalizável, amigos, comunidade, apoio por Pix e Clube Lendário.
-- Login opcional e modo convidado.
-- Moderação de palavras ofensivas, links, spam, mensagens e usuários.
-- Administração por lista segura de e-mails: jogadores, online, visitantes, salas, partidas, recompensas, punições, cosméticos, membros e auditoria.
+- Login opcional e modo convidado onde aplicável.
+- Moderação de chat, proteção contra spam e ferramentas administrativas.
+- Administração server-side com allowlist, auditoria e confirmação de persistência no D1.
 
 ## Executar localmente
 
@@ -43,35 +42,49 @@ Abra `http://localhost:3000`.
 
 ```bash
 npm test
-npx tsc --noEmit
 npm run lint
 npm run build
 ```
 
+O GitHub Actions executa testes, auditoria diagnóstica das dependências de produção, lint e build.
+
 ## Banco de dados e publicação
 
-O projeto usa Cloudflare D1, disponibilizado no código pelo binding `DB` configurado em `.openai/hosting.json`. O schema inicial está em `drizzle/0000_noutychess_initial.sql`; as rotas também executam migrações aditivas seguras para instalações existentes.
+O projeto usa Cloudflare D1 pelo binding `DB` configurado em `.openai/hosting.json`. O schema inicial está em `drizzle/0000_noutychess_initial.sql`; as rotas também executam migrações aditivas para instalações existentes.
 
-Na hospedagem, configure o segredo `NOUTY_ADMIN_EMAILS` com os e-mails autorizados, separados por vírgula. Exemplo:
+A produção oficial deve permanecer no **ChatGPT Site existente**, usando o mesmo D1 e o domínio personalizado `noutychess.ekasy-studio.com.br`. Não criar uma produção paralela sem uma decisão explícita de arquitetura.
+
+## Administração
+
+Configure no ambiente de hospedagem:
 
 ```text
 NOUTY_ADMIN_EMAILS=administrador@exemplo.com
+NOUTY_ADMIN_USER_IDS=
 ```
 
-Nunca coloque senha administrativa no frontend ou no repositório. O acesso ao painel depende de login autenticado e da lista de e-mails mantida no ambiente do servidor.
+`NOUTY_ADMIN_USER_IDS` é opcional e recomendado como segunda camada. Quando configurado, a identidade precisa corresponder simultaneamente à allowlist de e-mail e de user ID.
 
-## Segurança
+Nunca coloque senha administrativa, tokens ou secrets no frontend ou no repositório.
 
-- Resultados competitivos e recompensas são validados no servidor.
-- Ações administrativas exigem autenticação, autorização e deixam registro de auditoria.
+## Segurança e fair play
+
+- Resultados competitivos e recompensas são validados no servidor na medida suportada pela arquitetura atual.
+- Ações administrativas exigem autenticação/autorização e deixam trilha de auditoria.
+- Mutações administrativas JSON recebem proteção de origem.
 - Chats são normalizados, filtrados e limitados por frequência.
-- Cosméticos, clube e moedas não alteram a força das peças nem o cálculo do Elo.
-- Dados sensíveis devem ser configurados apenas como segredos do ambiente de hospedagem.
+- Convites sociais são revalidados no aceite e possuem expiração.
+- Cosméticos, Clube e moedas não alteram a força das peças nem oferecem vantagem competitiva.
+- Sugestões de engine são restritas aos modos educacionais e nunca devem aparecer em partidas competitivas online.
+- Source maps do navegador ficam desativados em produção.
+- Dados sensíveis devem existir somente como segredos do ambiente de hospedagem.
 
-## Código aberto no GitHub
+## Propriedade intelectual
 
-O repositório contém apenas código e exemplos seguros. Segredos de administração, Pix e serviços externos devem permanecer fora do Git e ser configurados no ambiente de hospedagem.
+NoutyChess é software proprietário da Ekasy Studio. Consulte `LICENSE`, `SECURITY.md`, `/termos`, `/privacidade` e `/regras` para as políticas aplicáveis.
+
+O JavaScript necessário para executar uma aplicação web pode ser tecnicamente inspecionado pelo navegador; por isso segredos, permissões administrativas e lógica sensível devem permanecer no servidor. O repositório deve ser tornado privado antes do lançamento final, desde que a integração do ChatGPT Sites com repositório privado seja confirmada e testada.
 
 ---
 
-© 2026 Ekasy Studio. Fundada por Thiago Roger Caldeira De Almeida.
+© 2026 Ekasy Studio. Todos os direitos reservados.
