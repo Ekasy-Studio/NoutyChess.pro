@@ -1,4 +1,5 @@
 import { env } from 'cloudflare:workers';
+import { headers } from 'next/headers';
 
 import { getChatGPTUser, type ChatGPTUser } from '@/app/chatgpt-auth';
 
@@ -12,6 +13,33 @@ function parseAllowlist(value: string | undefined): Set<string> {
     .split(',')
     .map((item) => item.trim().toLowerCase())
     .filter(Boolean));
+}
+
+async function requireTrustedMutationOrigin(): Promise<void> {
+  const requestHeaders = await headers();
+  const contentType = requestHeaders.get('content-type') ?? '';
+
+  // Navegações e leituras GET não carregam JSON. Todas as mutações atuais do
+  // painel usam application/json, então podemos endurecê-las centralmente.
+  if (!contentType.toLowerCase().startsWith('application/json')) return;
+
+  const origin = requestHeaders.get('origin');
+  const host = requestHeaders.get('x-forwarded-host') ?? requestHeaders.get('host');
+  const fetchSite = requestHeaders.get('sec-fetch-site');
+
+  if (!origin || !host) throw new AdminAccessError(403, 'Origem administrativa inválida.');
+
+  let originHost = '';
+  try {
+    originHost = new URL(origin).host.toLowerCase();
+  } catch {
+    throw new AdminAccessError(403, 'Origem administrativa inválida.');
+  }
+
+  if (originHost !== host.toLowerCase()) throw new AdminAccessError(403, 'Requisição administrativa externa bloqueada.');
+  if (fetchSite && fetchSite !== 'same-origin' && fetchSite !== 'same-site') {
+    throw new AdminAccessError(403, 'Requisição administrativa externa bloqueada.');
+  }
 }
 
 export async function requireAdmin(): Promise<ChatGPTUser> {
@@ -30,6 +58,7 @@ export async function requireAdmin(): Promise<ChatGPTUser> {
     throw new AdminAccessError(403, 'Esta identidade não está autorizada como administradora.');
   }
 
+  await requireTrustedMutationOrigin();
   return user;
 }
 
