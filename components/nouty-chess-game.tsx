@@ -110,7 +110,7 @@ const DIFFICULTY_LABELS: Record<AiDifficulty, string> = {
 
 const FILES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
 const RANKS = ['8', '7', '6', '5', '4', '3', '2', '1'];
-const GENERAL_WHATSAPP_TEXT = encodeURIComponent('♟️ Vem jogar xadrez comigo no NoutyChess.pro! https://noutychess.pro');
+const GENERAL_WHATSAPP_TEXT = encodeURIComponent('♟️ Vem jogar xadrez comigo no NoutyChess! https://noutychess.ekasy-studio.com.br');
 
 function allSquares(): Square[] {
   return RANKS.flatMap((rank) => FILES.map((file) => `${file}${rank}` as Square));
@@ -1016,9 +1016,9 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
   return (
     <main className={`min-h-dvh overflow-x-hidden bg-background text-foreground board-${boardTheme} pieces-${pieceTheme} ${animationsEnabled ? '' : 'motion-reduced'}`}>
       <header className="app-header">
-        <button className="brand" type="button" onClick={returnToMenu} aria-label="NoutyChess.pro, voltar ao início">
+        <button className="brand" type="button" onClick={returnToMenu} aria-label="NoutyChess, voltar ao início">
           <span className="brand-mark">♘</span>
-          <span><strong>NoutyChess.pro</strong><small>Jogue melhor</small></span>
+          <span><strong>NoutyChess</strong><small>Jogue melhor</small></span>
         </button>
         {competitiveProfile ? (
           <button className="profile-chip" type="button" onClick={() => setProfileOpen(true)}>
@@ -1260,7 +1260,7 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
       </section>
 
       <footer className="app-credit">
-        <span>© 2026 <strong>Ekasy-Studio</strong> · NoutyChess.pro</span>
+        <span>© 2026 <strong>Ekasy-Studio</strong> · NoutyChess</span>
         <nav>
           <a className="footer-whatsapp" href={`https://wa.me/?text=${GENERAL_WHATSAPP_TEXT}`} target="_blank" rel="noreferrer"><Share2 /> Convidar no WhatsApp</a>
           <Link href="/apoie">Apoie</Link>
@@ -1717,7 +1717,7 @@ function OnlineLobby({ phase, roomCode, joinCode, setJoinCode, error, authentica
     }
   };
   const inviteUrl = roomCode
-    ? `https://wa.me/?text=${encodeURIComponent(`♟️ Te desafio para uma partida no NoutyChess.pro! Código da sala: ${roomCode}\nhttps://noutychess.pro`)}`
+    ? `https://wa.me/?text=${encodeURIComponent(`♟️ Te desafio para uma partida no NoutyChess! Código da sala: ${roomCode}\nhttps://noutychess.ekasy-studio.com.br`)}`
     : `https://wa.me/?text=${GENERAL_WHATSAPP_TEXT}`;
   return (
     <div className="online-lobby">
