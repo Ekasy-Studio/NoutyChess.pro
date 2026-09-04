@@ -2,7 +2,7 @@
 
 Plataforma de xadrez competitiva da **Ekasy Studio**.
 
-**Endereço público planejado:** https://noutychess.pro
+**Endereço público oficial planejado:** https://noutychess.pro
 
 O projeto reúne partidas locais, Academia com professores digitais, multiplayer por código ou pareamento, ranking Elo, recompensas, perfis, amigos, comunidade, Clube Lendário e painel administrativo. A experiência é desenvolvida para computador e celular.
 
@@ -46,13 +46,15 @@ npm run lint
 npm run build
 ```
 
-O GitHub Actions executa testes, auditoria diagnóstica das dependências de produção, lint e build.
+O GitHub Actions executa instalação reproduzível, auditoria das dependências de produção, testes, lint e build. Vulnerabilidades de produção em nível High/Critical bloqueiam o CI.
 
 ## Banco de dados e publicação
 
 O projeto usa Cloudflare D1 pelo binding `DB` configurado em `.openai/hosting.json`. O schema inicial está em `drizzle/0000_noutychess_initial.sql`; as rotas também executam migrações aditivas para instalações existentes.
 
-A produção oficial deve permanecer no **ChatGPT Site existente**, usando o mesmo D1 e o domínio personalizado `noutychess.ekasy-studio.com.br`. Não criar uma produção paralela sem uma decisão explícita de arquitetura.
+A produção oficial deve permanecer no **ChatGPT Site existente**, usando o mesmo D1 e o domínio personalizado `noutychess.pro`. Não criar uma produção paralela sem uma decisão explícita de arquitetura.
+
+A identidade autenticada atual é fornecida pelo ChatGPT Sites por meio dos headers confiáveis `oai-authenticated-user-*`. Uma eventual migração para outra hospedagem exige antes substituir essa fronteira de confiança por autenticação própria/verificável no servidor.
 
 ## Administração
 
@@ -71,7 +73,7 @@ Nunca coloque senha administrativa, tokens ou secrets no frontend ou no reposit�
 
 - Resultados competitivos e recompensas são validados no servidor na medida suportada pela arquitetura atual.
 - Ações administrativas exigem autenticação/autorização e deixam trilha de auditoria.
-- Mutações administrativas JSON recebem proteção de origem.
+- Mutações JSON sensíveis validam mesma origem no servidor.
 - Chats são normalizados, filtrados e limitados por frequência.
 - Convites sociais são revalidados no aceite e possuem expiração.
 - Cosméticos, Clube e moedas não alteram a força das peças nem oferecem vantagem competitiva.
