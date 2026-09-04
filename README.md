@@ -19,10 +19,12 @@ O projeto reúne partidas locais, Academia com professores digitais, multiplayer
 - Regras de xadrez com roque, en passant, promoção, xeque, mate e empates.
 - Dicas visuais opcionais, última jogada, coordenadas, alertas e recursos para iniciantes.
 - Professores Niclaus e Damon com base de conhecimento e ajuda educacional nos modos permitidos.
-- Multiplayer P2P, salas com código, pareamento, convites e chat por sala.
+- Multiplayer P2P, salas com código, pareamento, convites, chat por sala e reconexão preservando posição, histórico e relógios.
 - Elo, divisões, XP, níveis, moedas, sequência, insígnias e ranking.
 - Tabuleiros e peças cosméticas, sem vantagem competitiva.
-- Perfil personalizável, amigos, comunidade, apoio por Pix e Clube Lendário.
+- Perfil personalizável, amigos, solicitações canceláveis, comunidade, apoio por Pix e Clube Lendário.
+- Sons de jogada, captura, xeque, mate, promoção, roque, resultados, mensagens e novos convites, com volume persistente.
+- Fluxo responsivo para celular, com menu/lobby priorizados antes da partida e suporte a safe areas.
 - Login opcional e modo convidado onde aplicável.
 - Moderação de chat, proteção contra spam e ferramentas administrativas.
 - Administração server-side com allowlist, auditoria e confirmação de persistência no D1.
@@ -46,7 +48,7 @@ npm run lint
 npm run build
 ```
 
-O GitHub Actions executa instalação reproduzível, auditoria das dependências de produção, testes, lint e build. Vulnerabilidades de produção em nível High/Critical bloqueiam o CI.
+O GitHub Actions executa instalação reproduzível, auditoria das dependências de produção, testes, lint e build. Qualquer vulnerabilidade de produção detectada a partir do nível Low bloqueia o CI. O Dependabot revisa semanalmente dependências npm e GitHub Actions por meio de pull requests.
 
 ## Banco de dados e publicação
 
