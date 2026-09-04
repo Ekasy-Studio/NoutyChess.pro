@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - scripts/integrate-audio-events.mjs
+      - lib/game-audio.ts
 
 concurrency:
   group: noutychess-audio-integration
