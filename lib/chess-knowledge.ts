@@ -101,15 +101,19 @@ export function detectOpening(history: string[]): OpeningLesson | null {
   if (history.length === 0) return null;
   let best: OpeningLesson | null = null;
   for (const opening of OPENING_LIBRARY) {
-    const compared = Math.min(history.length, opening.moves.length);
+    // Não antecipe uma variante que ainda depende de lances futuros.
+    // A abertura só recebe um nome quando toda a sequência mínima cadastrada
+    // já apareceu no histórico recebido.
+    if (history.length < opening.moves.length) continue;
+
     let matches = true;
-    for (let index = 0; index < compared; index += 1) {
+    for (let index = 0; index < opening.moves.length; index += 1) {
       if (history[index] !== opening.moves[index]) {
         matches = false;
         break;
       }
     }
-    if (matches && compared >= 2 && (!best || opening.moves.length > best.moves.length)) best = opening;
+    if (matches && (!best || opening.moves.length > best.moves.length)) best = opening;
   }
   return best;
 }
