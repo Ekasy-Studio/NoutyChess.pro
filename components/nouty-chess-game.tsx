@@ -67,6 +67,7 @@ import { chooseAiMove, type AiDifficulty, type AiPersonality } from '@/lib/chess
 import { chatSafetyReason } from '@/lib/chat-safety';
 import { frequenciesForGameSound, soundEventForMove, type GameSoundEvent } from '@/lib/game-audio';
 import { createOnlineSyncPayload, restoreOnlineSyncPayload } from '@/lib/online-sync';
+import { mergeNotificationIds, newUnreadGameInviteIds } from '@/lib/notification-audio';
 import type { CompetitiveProfile, LeaderboardEntry } from '@/lib/competitive';
 import {
   applyValidatedNetworkMove,
@@ -1159,7 +1160,7 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
         ) : (
           <a className="signin-chip" href={signInPath} target="_top"><LogIn /> Entrar para competir</a>
         )}
-        {competitiveProfile && <NotificationsMenu />}
+        {competitiveProfile && <NotificationsMenu onSound={playGameSound} />}
         <Button variant="ghost" size="icon" onClick={() => setAudioEnabled((value) => !value)} aria-label={audioEnabled ? 'Desativar som' : 'Ativar som'}>
           {audioEnabled ? <Volume2 /> : <VolumeX />}
         </Button>
@@ -1962,21 +1963,29 @@ function GamePreferences(props: {
 }
 
 type NotificationItem = { id: string; kind: string; title: string; message: string; created_at: number; read_at: number | null };
-function NotificationsMenu() {
+function NotificationsMenu({ onSound }: { onSound: (event: GameSoundEvent) => void }) {
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [unread, setUnread] = useState(0);
+  const initializedRef = useRef(false);
+  const knownIdsRef = useRef<Set<string>>(new Set());
   const load = useCallback(async () => {
     try {
       const response = await fetch('/api/notifications', { cache: 'no-store' });
       const body = await response.json() as { notifications?: NotificationItem[]; unread?: number };
       if (response.ok) {
-        setItems(body.notifications ?? []);
+        const notifications = body.notifications ?? [];
+        if (initializedRef.current && newUnreadGameInviteIds(notifications, knownIdsRef.current).length > 0) {
+          onSound('invite');
+        }
+        knownIdsRef.current = mergeNotificationIds(knownIdsRef.current, notifications);
+        initializedRef.current = true;
+        setItems(notifications);
         setUnread(Number(body.unread ?? 0));
       }
     } catch {
       // Notifications are non-blocking.
     }
-  }, []);
+  }, [onSound]);
   useEffect(() => {
     void load();
     const timer = window.setInterval(() => { if (document.visibilityState === 'visible') void load(); }, 20_000);
