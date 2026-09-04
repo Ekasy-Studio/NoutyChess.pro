@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - scripts/finalize-p0.mjs
+      - scripts/finalize-gameplay.mjs
 
 concurrency:
   group: noutychess-finalization
@@ -30,7 +31,9 @@ jobs:
           cache: npm
 
       - name: Apply final source fixes
-        run: node scripts/finalize-p0.mjs
+        run: |
+          node scripts/finalize-p0.mjs
+          node scripts/finalize-gameplay.mjs
 
       - name: Install compatible security releases
         run: |
