@@ -12,7 +12,7 @@ permissions:
 jobs:
   finalize:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -28,8 +28,11 @@ jobs:
       - name: Apply P0 source fixes
         run: node scripts/finalize-p0.mjs
 
-      - name: Patch React RSC security release
-        run: npm install --save-exact react@19.2.8 react-dom@19.2.8 react-server-dom-webpack@19.2.8
+      - name: Patch production dependency security releases
+        run: |
+          npm install --save-exact react@19.2.8 react-dom@19.2.8 react-server-dom-webpack@19.2.8 vinext@1.0.0-beta.9
+          npm install --save-dev --save-exact vite@8.2.2
+          npm update undici
 
       - name: Production dependency audit report
         run: npm audit --omit=dev --json > audit-production.json || true
