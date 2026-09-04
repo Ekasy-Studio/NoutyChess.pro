@@ -1165,7 +1165,13 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
         </Button>
       </header>
 
-      <section className="game-layout">
+      <section className={`game-layout ${mode === 'menu'
+        ? 'game-layout-menu'
+        : mode === 'online' && onlinePhase === 'disconnected'
+          ? 'game-layout-reconnect'
+          : mode === 'online' && onlinePhase !== 'connected'
+            ? 'game-layout-lobby'
+            : ''}`}>
         <div className="game-stage">
           <PlayerStrip
             color={topColor}

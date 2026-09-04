@@ -141,3 +141,30 @@
   .legend-club-card::before,
   .coach-card::before { animation: none !important; opacity: 0 !important; }
 }
+
+/* Mobile flow: menu and lobby first, board first only during a real game. */
+@media (max-width: 1050px) {
+  .game-layout-menu .game-stage,
+  .game-layout-lobby .game-stage { display: none; }
+
+  .game-layout-menu,
+  .game-layout-lobby { min-height: auto; padding-top: .4rem; }
+
+  .game-layout-reconnect .control-panel { order: -1; }
+}
+
+@media (max-width: 600px) {
+  .app-header {
+    padding-top: max(.65rem, env(safe-area-inset-top));
+    padding-right: max(.75rem, env(safe-area-inset-right));
+    padding-left: max(.75rem, env(safe-area-inset-left));
+  }
+
+  .game-layout-menu,
+  .game-layout-lobby { padding-inline: max(.5rem, env(safe-area-inset-left)); }
+
+  .game-layout-menu .control-panel,
+  .game-layout-lobby .control-panel { width: 100%; }
+
+  .app-credit { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
+}
