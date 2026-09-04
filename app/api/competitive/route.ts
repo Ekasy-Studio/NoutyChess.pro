@@ -13,6 +13,7 @@ import {
   type ColorCode,
   type MatchResult,
 } from '@/lib/competitive';
+import { RequestSecurityError, requireSameOriginJsonMutation } from '@/lib/request-security';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,6 +31,13 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  try {
+    requireSameOriginJsonMutation(request);
+  } catch (error) {
+    if (error instanceof RequestSecurityError) return NextResponse.json({ error: error.message }, { status: error.status });
+    return NextResponse.json({ error: 'Requisição inválida.' }, { status: 400 });
+  }
+
   const user = await getChatGPTUser();
   if (!user) return NextResponse.json({ error: 'Entre com sua conta para jogar partidas ranqueadas.' }, { status: 401 });
 
