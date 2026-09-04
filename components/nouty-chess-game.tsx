@@ -1738,7 +1738,7 @@ function FriendsPanel({ authenticated, signInPath, roomCode, onJoinRoom }: {
           <div key={friend.pair_key}><span>{friend.avatar_emote}</span><div><strong>{friend.display_name}</strong><small><i className={`presence-dot ${Number(friend.online) === 1 ? 'online' : ''}`} />{Number(friend.online) === 1 ? friend.presence_mode === 'playing' ? 'Em partida' : friend.presence_mode === 'matchmaking' ? 'Procurando' : 'Online' : 'Offline'} · {friend.rating} Elo</small></div>{roomCode && <Button size="xs" variant="secondary" disabled={Boolean(busy)} onClick={() => void act('invite', { friendId: friend.user_id, roomCode })}><Send /> Convidar</Button>}<button type="button" className="friend-remove" onClick={() => void act('remove', { pairKey: friend.pair_key })} aria-label={`Remover ${friend.display_name}`}>Remover</button></div>
         ))}
       </div>
-      {data.sent.length > 0 && <small className="friend-pending">Aguardando: {data.sent.map((item) => item.display_name).join(', ')}</small>}
+      {data.sent.length > 0 && <div className="friend-pending-list"><small>Solicitações enviadas</small>{data.sent.map((item) => <div key={item.pair_key}><span>{item.display_name}</span><button type="button" disabled={Boolean(busy)} onClick={() => void act('remove', { pairKey: item.pair_key })}>Cancelar</button></div>)}</div>}
       {error && <div className="network-error">{error}</div>}
     </details>
   );

@@ -168,3 +168,12 @@
 
   .app-credit { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
 }
+
+
+/* Sent friend requests can be cancelled individually. */
+.friend-pending-list { display: grid; gap: .3rem; padding: 0 .65rem .65rem; }
+.friend-pending-list > small { color: var(--muted-foreground); font-size: .48rem; }
+.friend-pending-list > div { display: flex; align-items: center; justify-content: space-between; gap: .5rem; min-height: 1.9rem; padding: .3rem .45rem; border: 1px solid rgba(255,255,255,.06); border-radius: .55rem; background: rgba(255,255,255,.02); }
+.friend-pending-list span { min-width: 0; overflow: hidden; font-size: .54rem; text-overflow: ellipsis; white-space: nowrap; }
+.friend-pending-list button { flex: 0 0 auto; color: var(--muted-foreground); font-size: .46rem; text-decoration: underline; }
+.friend-pending-list button:disabled { opacity: .5; }
