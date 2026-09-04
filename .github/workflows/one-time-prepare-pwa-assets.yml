@@ -28,33 +28,36 @@ jobs:
           node-version: '22.13.0'
           cache: npm
 
+      - name: Install temporary SVG renderer
+        run: npm install --no-save --package-lock=false @resvg/resvg-js@2.6.2
+
       - name: Render mobile icons
-        shell: bash
         run: |
-          set -euo pipefail
-          render_icon() {
-            local size="$1"
-            local output="$2"
-            if command -v magick >/dev/null 2>&1; then
-              magick -background none public/icon.svg -resize "${size}x${size}" "$output"
-            elif command -v convert >/dev/null 2>&1; then
-              convert -background none public/icon.svg -resize "${size}x${size}" "$output"
-            elif command -v rsvg-convert >/dev/null 2>&1; then
-              rsvg-convert -w "$size" -h "$size" public/icon.svg -o "$output"
-            else
-              echo "Nenhum rasterizador SVG disponível no runner." >&2
-              exit 1
-            fi
+          node --input-type=module <<'EOF'
+          import fs from 'node:fs';
+          import { Resvg } from '@resvg/resvg-js';
+
+          const source = fs.readFileSync('public/icon.svg', 'utf8');
+          for (const [size, output] of [
+            [192, 'public/icon-192.png'],
+            [512, 'public/icon-512.png'],
+            [180, 'public/apple-touch-icon.png'],
+          ]) {
+            const renderer = new Resvg(source, {
+              fitTo: { mode: 'width', value: size },
+              font: { loadSystemFonts: true },
+            });
+            const png = renderer.render().asPng();
+            fs.writeFileSync(output, png);
+            if (png.length < 1000) throw new Error(`PNG ${output} parece inválido.`);
           }
-          render_icon 192 public/icon-192.png
-          render_icon 512 public/icon-512.png
-          render_icon 180 public/apple-touch-icon.png
+          EOF
           file public/icon-192.png public/icon-512.png public/apple-touch-icon.png
 
       - name: Update PWA metadata
         run: node scripts/prepare-pwa-assets.mjs
 
-      - name: Install dependencies
+      - name: Restore locked dependencies
         run: npm ci
 
       - name: Production dependency audit
