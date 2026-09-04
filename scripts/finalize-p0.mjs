@@ -1,6 +1,5 @@
 import fs from 'node:fs';
 
-// P0 retry: dependency peers are resolved together by the validation workflow.
 const OLD_DOMAIN = 'https://noutychess.ekasy-studio.com.br';
 const NEW_DOMAIN = 'https://noutychess.pro';
 
@@ -150,14 +149,6 @@ if (!chat.includes(oldRoomCheck)) throw new Error('Bloco de autorização do cha
 chat = chat.replace(oldRoomCheck, newRoomCheck);
 fs.writeFileSync(chatPath, chat);
 
-const ciPath = '.github/workflows/ci.yml';
-let ci = fs.readFileSync(ciPath, 'utf8');
-const softAudit = `      - name: Production dependency audit\n        continue-on-error: true\n        run: npm audit --omit=dev --audit-level=high`;
-const hardAudit = `      - name: Production dependency audit\n        run: npm audit --omit=dev --audit-level=high`;
-if (ci.includes(softAudit)) ci = ci.replace(softAudit, hardAudit);
-else if (!ci.includes(hardAudit)) throw new Error('Etapa de auditoria do CI não foi encontrada.');
-fs.writeFileSync(ciPath, ci);
-
 // Ao iniciar uma nova sala, não carregar a cor da partida online anterior.
 const gameStatePath = 'components/nouty-chess-game.tsx';
 let gameState = fs.readFileSync(gameStatePath, 'utf8');
@@ -181,8 +172,6 @@ if (!gameState.includes(joinRoomBefore)) throw new Error('Bloco de entrada em sa
 gameState = gameState.replace(joinRoomBefore, joinRoomAfter);
 fs.writeFileSync(gameStatePath, gameState);
 
-for (const path of ['.github/workflows/one-time-finalize-p0.yml', 'scripts/finalize-p0.mjs']) {
-  if (fs.existsSync(path)) fs.rmSync(path);
-}
+if (fs.existsSync('scripts/finalize-p0.mjs')) fs.rmSync('scripts/finalize-p0.mjs');
 
 console.log(`P0 source patch applied. Canonical-domain replacements: ${domainReplacements}.`);
