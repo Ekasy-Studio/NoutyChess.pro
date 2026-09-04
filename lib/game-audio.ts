@@ -36,6 +36,8 @@ export function frequenciesForGameSound(event: GameSoundEvent): readonly number[
 }
 
 export function soundEventForMove(move: Move): GameSoundEvent {
+  // Mate continua sendo o evento máximo. Promoção vem antes de xeque para
+  // que o usuário perceba a transformação da peça mesmo quando ela dá xeque.
   if (move.san.includes('#')) return 'checkmate';
   if (move.promotion) return 'promotion';
   if (move.san.includes('+')) return 'check';
