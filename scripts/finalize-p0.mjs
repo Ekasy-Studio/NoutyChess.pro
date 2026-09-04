@@ -149,6 +149,14 @@ if (!chat.includes(oldRoomCheck)) throw new Error('Bloco de autorização do cha
 chat = chat.replace(oldRoomCheck, newRoomCheck);
 fs.writeFileSync(chatPath, chat);
 
+const ciPath = '.github/workflows/ci.yml';
+let ci = fs.readFileSync(ciPath, 'utf8');
+const softAudit = `      - name: Production dependency audit\n        continue-on-error: true\n        run: npm audit --omit=dev --audit-level=high`;
+const hardAudit = `      - name: Production dependency audit\n        run: npm audit --omit=dev --audit-level=high`;
+if (ci.includes(softAudit)) ci = ci.replace(softAudit, hardAudit);
+else if (!ci.includes(hardAudit)) throw new Error('Etapa de auditoria do CI não foi encontrada.');
+fs.writeFileSync(ciPath, ci);
+
 for (const path of ['.github/workflows/one-time-finalize-p0.yml', 'scripts/finalize-p0.mjs']) {
   if (fs.existsSync(path)) fs.rmSync(path);
 }
