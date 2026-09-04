@@ -37,8 +37,8 @@ export function frequenciesForGameSound(event: GameSoundEvent): readonly number[
 
 export function soundEventForMove(move: Move): GameSoundEvent {
   if (move.san.includes('#')) return 'checkmate';
-  if (move.san.includes('+')) return 'check';
   if (move.promotion) return 'promotion';
+  if (move.san.includes('+')) return 'check';
   if (move.captured) return 'capture';
   if (move.isKingsideCastle() || move.isQueensideCastle()) return 'castle';
   return 'move';
