@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { getChatGPTUser } from '@/app/chatgpt-auth';
 import { ensureSchema, getD1 } from '@/db';
 import { getOrCreateProfile } from '@/lib/competitive';
+import { RequestSecurityError, requireSameOriginJsonMutation } from '@/lib/request-security';
 
 export const dynamic = 'force-dynamic';
 
@@ -106,6 +107,13 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  try {
+    requireSameOriginJsonMutation(request);
+  } catch (error) {
+    if (error instanceof RequestSecurityError) return NextResponse.json({ error: error.message }, { status: error.status });
+    return NextResponse.json({ error: 'Requisição inválida.' }, { status: 400 });
+  }
+
   const user = await getChatGPTUser();
   if (!user) return NextResponse.json({ error: 'Entre com sua conta para usar amigos.' }, { status: 401 });
   try {
