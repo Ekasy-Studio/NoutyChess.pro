@@ -1,4 +1,4 @@
-name: One-time NoutyChess P0 finalization
+name: One-time NoutyChess finalization
 
 on:
   push:
@@ -6,13 +6,17 @@ on:
     paths:
       - scripts/finalize-p0.mjs
 
+concurrency:
+  group: noutychess-finalization
+  cancel-in-progress: true
+
 permissions:
   contents: write
 
 jobs:
   finalize:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -25,10 +29,10 @@ jobs:
           node-version: '22.13.0'
           cache: npm
 
-      - name: Apply P0 source fixes
+      - name: Apply final source fixes
         run: node scripts/finalize-p0.mjs
 
-      - name: Patch compatible security releases
+      - name: Install compatible security releases
         run: |
           npm pkg set dependencies.react=19.2.8
           npm pkg set dependencies.react-dom=19.2.8
@@ -36,22 +40,8 @@ jobs:
           npm pkg set dependencies.vinext=1.0.0-beta.9
           npm pkg set devDependencies.vite=8.2.2
           npm pkg set devDependencies.@vitejs/plugin-rsc=0.5.34
+          npm pkg set overrides.undici='^7.29.0'
           npm install
-          npm update undici
-
-      - name: Production dependency audit report
-        run: npm audit --omit=dev --json > audit-production.json || true
-
-      - name: Upload audit report
-        uses: actions/upload-artifact@v4
-        with:
-          name: production-audit
-          path: audit-production.json
-          retention-days: 1
-
-      - name: Block High or Critical production vulnerabilities
-        run: |
-          node -e "const fs=require('fs'); const r=JSON.parse(fs.readFileSync('audit-production.json','utf8')); const v=r.metadata?.vulnerabilities||{}; console.log(v); if ((v.high||0)+(v.critical||0)>0) process.exit(1)"
 
       - name: Service worker syntax
         run: node --check public/sw.js
@@ -65,10 +55,10 @@ jobs:
       - name: Production build
         run: npm run build
 
-      - name: Remove diagnostic artifact source
-        run: rm -f audit-production.json
+      - name: Block High or Critical production vulnerabilities
+        run: timeout 240s npm audit --omit=dev --audit-level=high
 
-      - name: Commit validated P0 fixes
+      - name: Commit validated finalization
         run: |
           if git diff --quiet; then
             echo "No changes needed."
@@ -77,5 +67,5 @@ jobs:
           git config user.name "Ekasy automation"
           git config user.email "actions@users.noreply.github.com"
           git add -A
-          git commit -m "Finaliza correções P0 de segurança e domínio"
+          git commit -m "Finaliza segurança, domínio e multiplayer do NoutyChess"
           git push
