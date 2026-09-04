@@ -65,6 +65,7 @@ import {
 } from '@/components/ui/dialog';
 import { chooseAiMove, type AiDifficulty, type AiPersonality } from '@/lib/chess-ai';
 import { chatSafetyReason } from '@/lib/chat-safety';
+import { frequenciesForGameSound, soundEventForMove, type GameSoundEvent } from '@/lib/game-audio';
 import type { CompetitiveProfile, LeaderboardEntry } from '@/lib/competitive';
 import {
   applyValidatedNetworkMove,
@@ -323,29 +324,30 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
       : [...current, { from, to }].slice(-12));
   }, [toggleMarkedSquare]);
 
-  const playTone = useCallback((move: Move) => {
+  const playGameSound = useCallback((event: GameSoundEvent) => {
     if (!audioEnabled || typeof window === 'undefined') return;
     try {
       const AudioContextClass = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
       if (!AudioContextClass) return;
       const context = audioContextRef.current ?? new AudioContextClass();
       audioContextRef.current = context;
-      const frequencies = move.san.includes('#') ? [640, 820] : move.san.includes('+') ? [520, 650] : move.captured ? [270, 190] : move.isKingsideCastle() || move.isQueensideCastle() ? [320, 430] : [360];
+      const frequencies = frequenciesForGameSound(event);
       frequencies.forEach((frequency, index) => {
         const oscillator = context.createOscillator();
         const gain = context.createGain();
         oscillator.type = index % 2 === 0 ? 'sine' : 'triangle';
         oscillator.frequency.value = frequency;
         const start = context.currentTime + index * 0.045;
+        const duration = event === 'victory' || event === 'defeat' || event === 'draw' ? 0.18 : 0.12;
         gain.gain.setValueAtTime(0.0001, start);
         gain.gain.exponentialRampToValueAtTime(Math.max(0.002, 0.045 * audioVolume), start + 0.012);
-        gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.12);
+        gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
         oscillator.connect(gain).connect(context.destination);
         oscillator.start(start);
-        oscillator.stop(start + 0.13);
+        oscillator.stop(start + duration + 0.01);
       });
     } catch {
-      // Audio is optional and must never block a move.
+      // Audio é opcional e nunca pode bloquear uma jogada ou evento de rede.
     }
   }, [audioEnabled, audioVolume]);
 
@@ -367,7 +369,7 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
     setSelected(null);
     setPendingPromotion(null);
     clearAnnotations();
-    playTone(move);
+    playGameSound(soundEventForMove(move));
     if (mode === 'computer') setCoachMessage(coachLine(teacher, move));
     finishFromPosition();
 
@@ -383,7 +385,7 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
       void connectionRef.current.send(payload);
     }
     forceRender();
-  }, [clearAnnotations, finishFromPosition, forceRender, mode, playTone, teacher, timeControl]);
+  }, [clearAnnotations, finishFromPosition, forceRender, mode, playGameSound, teacher, timeControl]);
 
   const attemptMove = useCallback((from: Square, to: Square, promotion?: 'q' | 'r' | 'b' | 'n') => {
     const previousPosition = positionKey(chessRef.current);
@@ -555,6 +557,7 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
       setOnlinePhase('connected');
       setRoomIsMatchmaking(false);
       setNetworkError('');
+      playGameSound('opponent-found');
       if (alertsEnabled) setStatusMessage('Adversário conectado. Boa partida!');
       void connection.send({ type: 'hello', displayName: localDisplayName.slice(0, 24) });
       if (role === 'host') {
@@ -615,8 +618,10 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
 
       if (data.type === 'chat' && typeof data.text === 'string') {
         const text = data.text.trim().slice(0, 280);
-        if (text && !chatSafetyReason(text)) setChatMessages((messages) => [...messages.slice(-29), { id: crypto.randomUUID(), author: 'Adversário', text }]);
-        else if (text) setNetworkError('Uma mensagem ofensiva do adversário foi bloqueada.');
+        if (text && !chatSafetyReason(text)) {
+          setChatMessages((messages) => [...messages.slice(-29), { id: crypto.randomUUID(), author: 'Adversário', text }]);
+          playGameSound('message');
+        } else if (text) setNetworkError('Uma mensagem ofensiva do adversário foi bloqueada.');
         return;
       }
 
@@ -643,7 +648,7 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
       setOnlinePhase('error');
       setNetworkError('Não foi possível manter a conexão da sala.');
     });
-  }, [afterAppliedMove, alertsEnabled, forceRender, localDisplayName, resetGame, timeControl]);
+  }, [afterAppliedMove, alertsEnabled, forceRender, localDisplayName, playGameSound, resetGame, timeControl]);
 
   const competitiveRequest = useCallback(async (payload: Record<string, unknown>) => {
     const response = await fetch('/api/competitive', {
@@ -939,6 +944,17 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
       return next;
     });
   }, [mode, outcome, playerColor]);
+
+  useEffect(() => {
+    if (!outcome || mode === 'menu') return;
+    if (outcome.kind !== 'timeout' && outcome.kind !== 'resignation' && outcome.kind !== 'agreement') return;
+    if (outcome.winner === null) {
+      playGameSound('draw');
+      return;
+    }
+    if (mode === 'local' || outcome.winner === playerColor) playGameSound('victory');
+    else playGameSound('defeat');
+  }, [mode, outcome, playGameSound, playerColor]);
 
   useEffect(() => {
     if (!authenticatedUser || mode !== 'online' || !roomCode || (onlinePhase !== 'waiting' && onlinePhase !== 'connected')) return;
