@@ -158,6 +158,29 @@ if (ci.includes(softAudit)) ci = ci.replace(softAudit, hardAudit);
 else if (!ci.includes(hardAudit)) throw new Error('Etapa de auditoria do CI não foi encontrada.');
 fs.writeFileSync(ciPath, ci);
 
+// Ao iniciar uma nova sala, não carregar a cor da partida online anterior.
+const gameStatePath = 'components/nouty-chess-game.tsx';
+let gameState = fs.readFileSync(gameStatePath, 'utf8');
+const createRoomBefore = `  const createOnlineRoom = async (matchmaking = false) => {
+    cleanupNetwork();
+    const code = createRoomCode();`;
+const createRoomAfter = `  const createOnlineRoom = async (matchmaking = false) => {
+    cleanupNetwork();
+    setPlayerColor('w');
+    setOrientation('w');
+    const code = createRoomCode();`;
+if (!gameState.includes(createRoomBefore)) throw new Error('Bloco de criação de sala esperado não foi encontrado.');
+gameState = gameState.replace(createRoomBefore, createRoomAfter);
+const joinRoomBefore = `    cleanupNetwork();
+    setRoomCode(code);`;
+const joinRoomAfter = `    cleanupNetwork();
+    setPlayerColor('b');
+    setOrientation('b');
+    setRoomCode(code);`;
+if (!gameState.includes(joinRoomBefore)) throw new Error('Bloco de entrada em sala esperado não foi encontrado.');
+gameState = gameState.replace(joinRoomBefore, joinRoomAfter);
+fs.writeFileSync(gameStatePath, gameState);
+
 for (const path of ['.github/workflows/one-time-finalize-p0.yml', 'scripts/finalize-p0.mjs']) {
   if (fs.existsSync(path)) fs.rmSync(path);
 }
