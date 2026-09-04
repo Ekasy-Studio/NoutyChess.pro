@@ -28,10 +28,15 @@ jobs:
       - name: Apply P0 source fixes
         run: node scripts/finalize-p0.mjs
 
-      - name: Patch production dependency security releases
+      - name: Patch compatible security releases
         run: |
-          npm install --save-exact react@19.2.8 react-dom@19.2.8 react-server-dom-webpack@19.2.8 vinext@1.0.0-beta.9
-          npm install --save-dev --save-exact vite@8.2.2
+          npm pkg set dependencies.react=19.2.8
+          npm pkg set dependencies.react-dom=19.2.8
+          npm pkg set dependencies.react-server-dom-webpack=19.2.8
+          npm pkg set dependencies.vinext=1.0.0-beta.9
+          npm pkg set devDependencies.vite=8.2.2
+          npm pkg set devDependencies.@vitejs/plugin-rsc=0.5.34
+          npm install
           npm update undici
 
       - name: Production dependency audit report
