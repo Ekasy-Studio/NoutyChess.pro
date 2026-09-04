@@ -28,7 +28,7 @@ jobs:
         run: npm ci
 
       - name: Production dependency audit
-        run: npm audit --omit=dev --audit-level=high
+        run: npm audit --omit=dev --audit-level=low
 
       - name: Tests
         run: npm test
