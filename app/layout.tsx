@@ -17,7 +17,7 @@ export const metadata: Metadata = {
   publisher: 'Ekasy Studio',
   authors: [{ name: 'Ekasy Studio', url: 'https://ekasy-studio.com.br' }],
   applicationName: 'NoutyChess',
-  icons: { icon: '/icon.svg', apple: '/icon.svg' },
+  icons: { icon: '/icon.svg', apple: '/apple-touch-icon.png' },
   openGraph: {
     title: 'NoutyChess',
     description: 'Seu próximo grande lance começa aqui. Jogue, evolua e desafie seus amigos.',
