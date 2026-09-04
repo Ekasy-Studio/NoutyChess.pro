@@ -1,0 +1,54 @@
+name: One-time esbuild security fix
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/one-time-fix-esbuild.yml
+
+concurrency:
+  group: noutychess-esbuild-fix
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22.13.0'
+          cache: npm
+
+      - name: Apply patched esbuild override
+        run: |
+          npm pkg set overrides.esbuild='^0.28.1'
+          npm install
+
+      - name: Production dependency audit
+        run: npm audit --omit=dev --audit-level=low
+
+      - name: Tests
+        run: npm test
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Production build
+        run: npm run build
+
+      - name: Commit validated dependency fix
+        run: |
+          git config user.name "Ekasy automation"
+          git config user.email "actions@users.noreply.github.com"
+          git add package.json package-lock.json
+          git diff --cached --quiet && exit 0
+          git commit -m "Atualiza esbuild para versão corrigida"
+          git push
