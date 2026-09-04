@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 
 import { chooseAiMove, type AiDifficulty, type AiPersonality } from '@/lib/chess-ai';
 import { conceptExplanation, detectOpening, findConcept, TEACHERS, type TeachingLevel } from '@/lib/chess-knowledge';
+import { RequestSecurityError, requireSameOriginJsonMutation } from '@/lib/request-security';
 
 export const dynamic = 'force-dynamic';
 
@@ -50,6 +51,13 @@ function teacherVoice(teacher: AiPersonality, message: string): string {
 }
 
 export async function POST(request: Request) {
+  try {
+    requireSameOriginJsonMutation(request);
+  } catch (error) {
+    if (error instanceof RequestSecurityError) return NextResponse.json({ error: error.message }, { status: error.status });
+    return NextResponse.json({ error: 'Requisição inválida.' }, { status: 400 });
+  }
+
   try {
     const body = await request.json() as Record<string, unknown>;
     const fen = typeof body.fen === 'string' ? body.fen.slice(0, 120) : '';
