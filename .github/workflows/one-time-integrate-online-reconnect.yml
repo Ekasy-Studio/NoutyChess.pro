@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - scripts/integrate-online-reconnect.mjs
+      - .github/workflows/one-time-integrate-online-reconnect.yml
 
 concurrency:
   group: noutychess-online-reconnect
