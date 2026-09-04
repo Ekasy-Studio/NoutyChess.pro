@@ -66,6 +66,7 @@ import {
 import { chooseAiMove, type AiDifficulty, type AiPersonality } from '@/lib/chess-ai';
 import { chatSafetyReason } from '@/lib/chat-safety';
 import { frequenciesForGameSound, soundEventForMove, type GameSoundEvent } from '@/lib/game-audio';
+import { createOnlineSyncPayload, restoreOnlineSyncPayload } from '@/lib/online-sync';
 import type { CompetitiveProfile, LeaderboardEntry } from '@/lib/competitive';
 import {
   applyValidatedNetworkMove,
@@ -207,6 +208,8 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
   const resultRecordedRef = useRef(false);
   const matchReportedRef = useRef(false);
   const timeoutDeclaredRef = useRef(false);
+  const hostSessionInitializedRef = useRef(false);
+  const clocksRef = useRef({ w: 600, b: 600 });
   const rightDragRef = useRef<Square | null>(null);
 
   const [revision, setRevision] = useState(0);
@@ -365,7 +368,11 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
 
   const afterAppliedMove = useCallback((move: Move, origin: 'local' | 'remote', previousPosition: string) => {
     const increment = TIME_CONTROLS[timeControl].increment;
-    if (increment > 0) setClocks((value) => ({ ...value, [move.color]: value[move.color] + increment }));
+    if (increment > 0) setClocks((value) => {
+      const next = { ...value, [move.color]: value[move.color] + increment };
+      clocksRef.current = next;
+      return next;
+    });
     setSelected(null);
     setPendingPromotion(null);
     clearAnnotations();
@@ -414,7 +421,9 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
     setOutcome(null);
     setAiThinking(false);
     setTeacherChat([]);
-    setClocks({ w: TIME_CONTROLS[timeControl].seconds, b: TIME_CONTROLS[timeControl].seconds });
+    const nextClocks = { w: TIME_CONTROLS[timeControl].seconds, b: TIME_CONTROLS[timeControl].seconds };
+    clocksRef.current = nextClocks;
+    setClocks(nextClocks);
     setStatusMessage('Vez das brancas.');
     setDrawOffer(false);
     setRemoteName('Adversário');
@@ -427,6 +436,7 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
     connectionRef.current = null;
     peerRef.current?.destroy();
     peerRef.current = null;
+    hostSessionInitializedRef.current = false;
     setOnlinePhase('idle');
     setRoomIsMatchmaking(false);
     setNetworkError('');
@@ -561,8 +571,11 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
       if (alertsEnabled) setStatusMessage('Adversário conectado. Boa partida!');
       void connection.send({ type: 'hello', displayName: localDisplayName.slice(0, 24) });
       if (role === 'host') {
-        resetGame('online', 'w');
-        void connection.send({ type: 'sync', protocol: 1, fen: chessRef.current.fen(), displayName: localDisplayName.slice(0, 24) });
+        if (!hostSessionInitializedRef.current) {
+          resetGame('online', 'w');
+          hostSessionInitializedRef.current = true;
+        }
+        void connection.send(createOnlineSyncPayload(chessRef.current, clocksRef.current, localDisplayName));
       } else {
         setStatusMessage('Sincronizando a partida…');
       }
@@ -577,28 +590,29 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
         return;
       }
 
-      if (data.type === 'sync' && role === 'guest' && data.protocol === 1 && typeof data.fen === 'string' && data.fen.length <= 100) {
-        try {
-          if (typeof data.displayName === 'string') {
-            const name = data.displayName.replace(/[<>\u0000-\u001f]/g, '').trim().slice(0, 24);
-            if (name) setRemoteName(name);
-          }
-          chessRef.current = new Chess(data.fen);
-          resultRecordedRef.current = false;
-          matchReportedRef.current = false;
-          timeoutDeclaredRef.current = false;
-          setMode('online');
-          setPlayerColor('b');
-          setOrientation('b');
-          setOutcome(null);
-          setClocks({ w: TIME_CONTROLS[timeControl].seconds, b: TIME_CONTROLS[timeControl].seconds });
-          setOnlinePhase('connected');
-          setStatusMessage('Conectado. Vez das brancas.');
-          forceRender();
-        } catch {
-          setNetworkError('O adversário enviou uma posição inválida.');
+      if (data.type === 'sync' && role === 'guest') {
+        const restored = restoreOnlineSyncPayload(data);
+        if (!restored) {
+          setNetworkError('O adversário enviou uma sincronização inválida.');
           connection.close();
+          return;
         }
+        setRemoteName(restored.displayName);
+        chessRef.current = restored.chess;
+        resultRecordedRef.current = false;
+        matchReportedRef.current = false;
+        timeoutDeclaredRef.current = false;
+        setMode('online');
+        setPlayerColor('b');
+        setOrientation('b');
+        setOutcome(null);
+        const restoredClocks = restored.clocks ?? { w: TIME_CONTROLS[timeControl].seconds, b: TIME_CONTROLS[timeControl].seconds };
+        clocksRef.current = restoredClocks;
+        setClocks(restoredClocks);
+        setOnlinePhase('connected');
+        setNetworkError('');
+        setStatusMessage(restored.chess.history().length > 0 ? 'Reconectado. Partida restaurada.' : 'Conectado. Vez das brancas.');
+        forceRender();
         return;
       }
 
@@ -642,11 +656,12 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
 
     connection.on('close', () => {
       setOnlinePhase('disconnected');
-      setStatusMessage('A conexão com o adversário foi encerrada.');
+      setNetworkError('Conexão interrompida. A partida foi preservada para reconexão.');
+      setStatusMessage(role === 'host' ? 'Aguardando o adversário reconectar…' : 'Reconecte para continuar a mesma partida.');
     });
     connection.on('error', () => {
-      setOnlinePhase('error');
-      setNetworkError('Não foi possível manter a conexão da sala.');
+      setOnlinePhase('disconnected');
+      setNetworkError('A conexão caiu, mas a partida continua preservada.');
     });
   }, [afterAppliedMove, alertsEnabled, forceRender, localDisplayName, playGameSound, resetGame, timeControl]);
 
@@ -711,6 +726,7 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
 
   const createOnlineRoom = async (matchmaking = false) => {
     cleanupNetwork();
+    hostSessionInitializedRef.current = false;
     setPlayerColor('w');
     setOrientation('w');
     const code = createRoomCode();
@@ -737,6 +753,10 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
         setStatusMessage(matchmaking ? 'Procurando um adversário compatível…' : 'Sala criada. Compartilhe o código.');
       });
       peer.on('connection', (connection) => setupConnection(connection, 'host'));
+      peer.on('disconnected', () => {
+        setOnlinePhase('disconnected');
+        setNetworkError('O serviço online desconectou. Tente reconectar sem sair da partida.');
+      });
       peer.on('error', () => {
         setOnlinePhase('error');
         setNetworkError('O serviço de salas está indisponível. O jogo local continua funcionando.');
@@ -778,6 +798,10 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
         const connection = peer.connect(`nouty-${code}`, { reliable: true });
         setupConnection(connection, 'guest');
       });
+      peer.on('disconnected', () => {
+        setOnlinePhase('disconnected');
+        setNetworkError('Sua conexão com a sala caiu. Reconecte para continuar.');
+      });
       peer.on('error', () => {
         setOnlinePhase('error');
         setNetworkError('Sala inexistente ou serviço online indisponível.');
@@ -787,6 +811,33 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
       setNetworkError('Não foi possível carregar o modo online.');
     }
   }, [authenticatedUser, cleanupNetwork, competitiveRequest, joinCode, setupConnection]);
+
+  const reconnectOnline = useCallback(async () => {
+    const code = safeRoomCode(roomCode);
+    if (mode !== 'online' || code.length !== 6) return;
+    setNetworkError('');
+    if (playerColor === 'b') {
+      await joinOnlineRoom(code);
+      return;
+    }
+
+    const peer = peerRef.current;
+    if (!peer || peer.destroyed) {
+      setNetworkError('A sala do host foi encerrada. Crie uma nova sala para continuar jogando.');
+      return;
+    }
+    try {
+      if (peer.disconnected) peer.reconnect();
+      setOnlinePhase('waiting');
+      setStatusMessage('Sala reaberta. Aguardando o adversário reconectar…');
+      if (authenticatedUser) {
+        await competitiveRequest({ action: 'heartbeat', roomCode: code, role: 'host', matchmaking: false });
+      }
+    } catch (error) {
+      setOnlinePhase('disconnected');
+      setNetworkError(error instanceof Error ? error.message : 'Não foi possível reabrir a sala.');
+    }
+  }, [authenticatedUser, competitiveRequest, joinOnlineRoom, mode, playerColor, roomCode]);
 
   const findQuickMatch = async () => {
     if (!authenticatedUser) {
@@ -957,7 +1008,7 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
   }, [mode, outcome, playGameSound, playerColor]);
 
   useEffect(() => {
-    if (!authenticatedUser || mode !== 'online' || !roomCode || (onlinePhase !== 'waiting' && onlinePhase !== 'connected')) return;
+    if (!authenticatedUser || mode !== 'online' || !roomCode || (onlinePhase !== 'waiting' && onlinePhase !== 'connected' && onlinePhase !== 'disconnected')) return;
     const pulse = () => {
       void competitiveRequest({
         action: 'heartbeat',
@@ -1016,6 +1067,7 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
       const turn = chessRef.current.turn();
       setClocks((current) => {
         const next = { ...current, [turn]: Math.max(0, current[turn] - elapsed) };
+        clocksRef.current = next;
         if (next[turn] <= 0 && !timeoutDeclaredRef.current) {
           const mayDeclare = mode !== 'online' || turn === playerColor;
           if (mayDeclare) {
@@ -1244,6 +1296,7 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
                   onQuickMatch={() => void findQuickMatch()}
                   onCreate={() => void createOnlineRoom(false)}
                   onJoin={() => void joinOnlineRoom()}
+                  onReconnect={() => void reconnectOnline()}
                   onCancel={returnToMenu}
                 />
               ) : (
@@ -1770,7 +1823,7 @@ function CompetitiveHub({ profile, leaderboard, signInPath, onEditProfile }: {
   );
 }
 
-function OnlineLobby({ phase, roomCode, joinCode, setJoinCode, error, authenticated, signInPath, guestName, setGuestName, matchmaking, onQuickMatch, onCreate, onJoin, onCancel }: {
+function OnlineLobby({ phase, roomCode, joinCode, setJoinCode, error, authenticated, signInPath, guestName, setGuestName, matchmaking, onQuickMatch, onCreate, onJoin, onReconnect, onCancel }: {
   phase: OnlinePhase;
   roomCode: string;
   joinCode: string;
@@ -1784,6 +1837,7 @@ function OnlineLobby({ phase, roomCode, joinCode, setJoinCode, error, authentica
   onQuickMatch: () => void;
   onCreate: () => void;
   onJoin: () => void;
+  onReconnect: () => void;
   onCancel: () => void;
 }) {
   const [copied, setCopied] = useState(false);
@@ -1806,7 +1860,14 @@ function OnlineLobby({ phase, roomCode, joinCode, setJoinCode, error, authentica
       <h2>Encontre seu próximo rival.</h2>
       <LivePresence />
       <p>Pareamento competitivo ou sala privada. Resultados ranqueados são validados antes de atualizar o Elo.</p>
-      {phase === 'waiting' ? (
+      {phase === 'disconnected' && roomCode ? (
+        <div className="room-code-card reconnect-card">
+          <small>PARTIDA PRESERVADA</small><strong>{roomCode}</strong>
+          <p>Seu tabuleiro e o histórico continuam intactos. Reconecte usando a mesma sala.</p>
+          <Button onClick={onReconnect}><Wifi /> Reconectar partida</Button>
+          <Button variant="ghost" size="sm" onClick={onCancel}>Sair da partida</Button>
+        </div>
+      ) : phase === 'waiting' ? (
         <>
           <div className="room-code-card">
             <small>{matchmaking ? 'PAREAMENTO ATIVO' : 'SEU CÓDIGO'}</small><strong>{roomCode}</strong>
