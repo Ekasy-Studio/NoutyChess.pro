@@ -1,0 +1,79 @@
+name: One-time prepare PWA assets
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - scripts/prepare-pwa-assets.mjs
+      - .github/workflows/one-time-prepare-pwa-assets.yml
+
+concurrency:
+  group: noutychess-pwa-assets
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22.13.0'
+          cache: npm
+
+      - name: Render mobile icons
+        shell: bash
+        run: |
+          set -euo pipefail
+          render_icon() {
+            local size="$1"
+            local output="$2"
+            if command -v magick >/dev/null 2>&1; then
+              magick -background none public/icon.svg -resize "${size}x${size}" "$output"
+            elif command -v convert >/dev/null 2>&1; then
+              convert -background none public/icon.svg -resize "${size}x${size}" "$output"
+            elif command -v rsvg-convert >/dev/null 2>&1; then
+              rsvg-convert -w "$size" -h "$size" public/icon.svg -o "$output"
+            else
+              echo "Nenhum rasterizador SVG disponível no runner." >&2
+              exit 1
+            fi
+          }
+          render_icon 192 public/icon-192.png
+          render_icon 512 public/icon-512.png
+          render_icon 180 public/apple-touch-icon.png
+          file public/icon-192.png public/icon-512.png public/apple-touch-icon.png
+
+      - name: Update PWA metadata
+        run: node scripts/prepare-pwa-assets.mjs
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Production dependency audit
+        run: npm audit --omit=dev --audit-level=low
+
+      - name: Tests
+        run: npm test
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Production build
+        run: npm run build
+
+      - name: Commit validated PWA assets
+        run: |
+          git config user.name "Ekasy automation"
+          git config user.email "actions@users.noreply.github.com"
+          git add public/icon-192.png public/icon-512.png public/apple-touch-icon.png public/manifest.webmanifest app/layout.tsx
+          git diff --cached --quiet && exit 0
+          git commit -m "Melhora instalação PWA em Android e iOS"
+          git push
