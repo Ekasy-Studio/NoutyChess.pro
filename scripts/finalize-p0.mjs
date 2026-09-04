@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 
+// P0 retry: dependency peers are resolved together by the validation workflow.
 const OLD_DOMAIN = 'https://noutychess.ekasy-studio.com.br';
 const NEW_DOMAIN = 'https://noutychess.pro';
 
