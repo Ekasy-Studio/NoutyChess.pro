@@ -28,17 +28,25 @@ jobs:
           node-version: '22.13.0'
           cache: npm
 
-      - name: Install temporary SVG renderer
-        run: npm install --no-save --package-lock=false @resvg/resvg-js@2.6.2
+      - name: Install isolated SVG renderer
+        run: |
+          mkdir -p /tmp/nouty-resvg
+          cd /tmp/nouty-resvg
+          npm init -y >/dev/null
+          npm install --save-exact @resvg/resvg-js@2.6.2
 
       - name: Render mobile icons
         run: |
-          node --input-type=module <<'EOF'
+          cd /tmp/nouty-resvg
+          NOUTY_WORKSPACE="$GITHUB_WORKSPACE" node --input-type=module <<'EOF'
           import fs from 'node:fs';
+          import path from 'node:path';
           import { Resvg } from '@resvg/resvg-js';
 
-          const source = fs.readFileSync('public/icon.svg', 'utf8');
-          for (const [size, output] of [
+          const workspace = process.env.NOUTY_WORKSPACE;
+          if (!workspace) throw new Error('Workspace não encontrado.');
+          const source = fs.readFileSync(path.join(workspace, 'public/icon.svg'), 'utf8');
+          for (const [size, relativeOutput] of [
             [192, 'public/icon-192.png'],
             [512, 'public/icon-512.png'],
             [180, 'public/apple-touch-icon.png'],
@@ -48,16 +56,18 @@ jobs:
               font: { loadSystemFonts: true },
             });
             const png = renderer.render().asPng();
+            const output = path.join(workspace, relativeOutput);
             fs.writeFileSync(output, png);
-            if (png.length < 1000) throw new Error(`PNG ${output} parece inválido.`);
+            if (png.length < 1000) throw new Error(`PNG ${relativeOutput} parece inválido.`);
           }
           EOF
+          cd "$GITHUB_WORKSPACE"
           file public/icon-192.png public/icon-512.png public/apple-touch-icon.png
 
       - name: Update PWA metadata
         run: node scripts/prepare-pwa-assets.mjs
 
-      - name: Restore locked dependencies
+      - name: Install locked dependencies
         run: npm ci
 
       - name: Production dependency audit
