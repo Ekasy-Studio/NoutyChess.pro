@@ -67,6 +67,7 @@ import { chooseAiMove, type AiDifficulty, type AiPersonality } from '@/lib/chess
 import { chatSafetyReason } from '@/lib/chat-safety';
 import { frequenciesForGameSound, soundEventForMove, type GameSoundEvent } from '@/lib/game-audio';
 import { createOnlineSyncPayload, restoreOnlineSyncPayload } from '@/lib/online-sync';
+import { shouldAdvanceOnlineClock } from '@/lib/online-clock';
 import { mergeNotificationIds, newUnreadGameInviteIds } from '@/lib/notification-audio';
 import type { CompetitiveProfile, LeaderboardEntry } from '@/lib/competitive';
 import {
@@ -755,10 +756,18 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
       });
       peer.on('connection', (connection) => setupConnection(connection, 'host'));
       peer.on('disconnected', () => {
+        if (connectionRef.current?.open) {
+          setNetworkError('O serviço de salas perdeu o sinal, mas a partida P2P continua conectada.');
+          return;
+        }
         setOnlinePhase('disconnected');
         setNetworkError('O serviço online desconectou. Tente reconectar sem sair da partida.');
       });
       peer.on('error', () => {
+        if (connectionRef.current?.open) {
+          setNetworkError('O serviço de salas está instável, mas a partida atual continua conectada.');
+          return;
+        }
         setOnlinePhase('error');
         setNetworkError('O serviço de salas está indisponível. O jogo local continua funcionando.');
       });
@@ -800,10 +809,18 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
         setupConnection(connection, 'guest');
       });
       peer.on('disconnected', () => {
+        if (connectionRef.current?.open) {
+          setNetworkError('O serviço de salas perdeu o sinal, mas a partida P2P continua conectada.');
+          return;
+        }
         setOnlinePhase('disconnected');
         setNetworkError('Sua conexão com a sala caiu. Reconecte para continuar.');
       });
       peer.on('error', () => {
+        if (connectionRef.current?.open) {
+          setNetworkError('O serviço de salas está instável, mas a partida atual continua conectada.');
+          return;
+        }
         setOnlinePhase('error');
         setNetworkError('Sala inexistente ou serviço online indisponível.');
       });
@@ -1059,7 +1076,8 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
   }, [authenticatedUser, competitiveRequest, mode, outcome, playerColor, refreshCompetitiveProfile, roomCode]);
 
   useEffect(() => {
-    if (mode === 'menu' || currentOutcome || (mode === 'online' && onlinePhase !== 'connected')) return;
+    if (mode === 'menu' || currentOutcome) return;
+    if (mode === 'online' && !shouldAdvanceOnlineClock(onlinePhase, playerColor)) return;
     let lastTick = performance.now();
     const timer = window.setInterval(() => {
       const now = performance.now();
@@ -1070,7 +1088,7 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
         const next = { ...current, [turn]: Math.max(0, current[turn] - elapsed) };
         clocksRef.current = next;
         if (next[turn] <= 0 && !timeoutDeclaredRef.current) {
-          const mayDeclare = mode !== 'online' || turn === playerColor;
+          const mayDeclare = mode !== 'online' || (onlinePhase === 'connected' && turn === playerColor);
           if (mayDeclare) {
             timeoutDeclaredRef.current = true;
             const winner: Color = turn === 'w' ? 'b' : 'w';
