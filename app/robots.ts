@@ -1,6 +1,6 @@
 import type { MetadataRoute } from 'next';
 
-const base = 'https://noutychess.ekasy-studio.com.br';
+const base = 'https://noutychess.pro';
 
 export default function robots(): MetadataRoute.Robots {
   return {

@@ -50,7 +50,9 @@ export async function POST(request: Request) {
     }
 
     if (body.action === 'find-match') {
-      const match = await findAutomaticMatch(user);
+      const currentRoomCode = typeof body.currentRoomCode === 'string' ? body.currentRoomCode.toUpperCase() : '';
+      if (currentRoomCode && !/^[A-Z2-9]{6}$/.test(currentRoomCode)) throw new Error('Sala de busca inválida.');
+      const match = await findAutomaticMatch(user, currentRoomCode || undefined);
       return NextResponse.json({ ok: true, match });
     }
 

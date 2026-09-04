@@ -1,184 +1,56 @@
 # NoutyChess — configuração oficial do domínio
 
-Esta é uma etapa P0 do lançamento e deve ser tratada ANTES da publicação final do jogo.
+Esta etapa é P0 e deve ser concluída antes do lançamento final.
 
-## Objetivo
+## Domínio canônico
 
-O endereço público oficial do jogo deve ser:
+O endereço público oficial é:
 
-`https://noutychess.ekasy-studio.com.br`
+`https://noutychess.pro`
 
-A marca/título visível do produto deve ser simplesmente:
+A aplicação deve continuar usando o ChatGPT Site EXISTENTE e o D1 EXISTENTE configurado pelo binding `DB` em `.openai/hosting.json`.
 
-`NoutyChess`
+Não criar outro Site, outro D1, Vercel ou uma produção paralela.
 
-Não exibir GitHub ou `chatgpt.site` como endereço principal para os usuários. A URL técnica do ChatGPT Sites pode continuar existindo apenas como infraestrutura/fallback, caso a plataforma mantenha isso automaticamente.
+## Procedimento seguro no ChatGPT Sites
 
-## Site correto
+1. Abra o Site existente do NoutyChess.
+2. Vá a Configurações e escolha adicionar domínio personalizado.
+3. Informe exatamente `noutychess.pro`.
+4. Copie os registros DNS exibidos pelo Sites exatamente como forem apresentados.
+5. Não reutilize registros, tokens TXT ou destinos antigos do subdomínio `noutychess.ekasy-studio.com.br`.
 
-Usar o ChatGPT Site EXISTENTE do NoutyChess.
+Os registros exigidos podem mudar. Este repositório não deve inventar A, AAAA, CNAME, ALIAS, TXT ou nameservers.
 
-Preservar:
+## No provedor DNS
 
-- `.openai/hosting.json`;
-- o projeto Sites existente;
-- o binding D1 `DB`;
-- usuários e dados atuais;
-- autenticação atual.
+Antes de alterar qualquer coisa, registre a configuração atual e preserve:
 
-NÃO criar outro Site, outro D1 ou uma implantação paralela no Vercel.
+- MX;
+- SPF;
+- DKIM;
+- DMARC, se existir;
+- registros de e-mail;
+- nameservers atuais, salvo instrução explícita do provedor/Sites.
 
-## Domínio no Registro.br
+Adicione somente os registros fornecidos pelo ChatGPT Sites para `noutychess.pro`.
 
-Domínio-base administrado no Registro.br:
+Se o Sites oferecer configuração para `www.noutychess.pro`, prefira redirecionar `www` para o domínio raiz. Não crie esse redirecionamento por adivinhação.
 
-`ekasy-studio.com.br`
+## Verificação
 
-Subdomínio que será ligado ao NoutyChess:
+Depois da propagação, confirmar:
 
-`noutychess.ekasy-studio.com.br`
+- domínio marcado como conectado/verificado no Sites;
+- HTTPS e certificado válidos;
+- `https://noutychess.pro` abrindo o Site correto;
+- login funcionando no domínio final;
+- APIs funcionando no domínio final;
+- o mesmo D1 continuando em uso;
+- convites de WhatsApp usando `https://noutychess.pro`;
+- metadata, Open Graph, canonical, robots e sitemap usando o domínio canônico;
+- nenhuma dependência do antigo subdomínio para funcionamento da aplicação.
 
-Abra o domínio `ekasy-studio.com.br` e a zona DNS avançada.
+## Regra de rollback
 
-### Regra de segurança
-
-Se o domínio ainda estiver em transição e o botão `Nova Entrada` não estiver disponível:
-
-- NÃO alterar nameservers;
-- NÃO remover registros;
-- NÃO criar valores alternativos;
-- NÃO tentar contornar a transição;
-- registrar que o DNS ainda está bloqueado e encerrar somente esta etapa para ser retomada em outra execução.
-
-Nunca inventar registros DNS.
-
-## Registros DNS EXATOS
-
-Quando o editor DNS avançado estiver liberado, adicionar EXATAMENTE os seguintes registros.
-
-### Registro 1
-
-Tipo:
-
-`CNAME`
-
-Nome/Host:
-
-`noutychess`
-
-Valor/Destino:
-
-`custom-domains.chatgpt.site.`
-
-IMPORTANTE: preservar o ponto final se o editor do Registro.br aceitar/exibir FQDN dessa forma. Não substituir por outro destino.
-
-### Registro 2
-
-Tipo:
-
-`TXT`
-
-Nome/Host:
-
-`_openai-site-verification.noutychess`
-
-Valor:
-
-`openai-site-verification=EwxQxlWLkZqQvaMkBg4OVFO0HCD8HuobeItFqkif3_E`
-
-### Registro 3
-
-Tipo:
-
-`TXT`
-
-Nome/Host:
-
-`_cf-custom-hostname.noutychess`
-
-Valor:
-
-`c462f142-c554-4b0b-9069-5fb078ae3bd8`
-
-## Antes de salvar
-
-Conferir caractere por caractere:
-
-- tipo;
-- nome/host;
-- valor;
-- ausência de espaços acidentais;
-- domínio correto `ekasy-studio.com.br`.
-
-Não apagar registros MX, SPF, DKIM, TXT ou outros registros não relacionados ao NoutyChess.
-
-Não trocar nameservers.
-
-## Depois de salvar
-
-1. Confirmar que os três registros aparecem na zona DNS.
-2. Confirmar que não existe CNAME conflitante para `noutychess`.
-3. Voltar ao projeto ChatGPT Sites existente do NoutyChess.
-4. Usar os metadados/configuração local do projeto para localizar o domínio personalizado já solicitado.
-5. Atualizar/verificar o status de `noutychess.ekasy-studio.com.br`.
-6. Aguardar o Sites reconhecer os registros.
-7. Confirmar que o domínio fica como conectado/ativo.
-8. Confirmar HTTPS e certificado válido.
-9. Abrir `https://noutychess.ekasy-studio.com.br` e confirmar que carrega o NoutyChess correto.
-10. Testar login e chamadas de API pelo domínio personalizado.
-11. Confirmar que o mesmo D1 continua em uso.
-
-## Identidade pública
-
-A página deve usar:
-
-- `<title>` / metadata principal: `NoutyChess` ou `NoutyChess — Jogue melhor`;
-- nome da marca: `NoutyChess`;
-- domínio público: `noutychess.ekasy-studio.com.br`.
-
-Não colocar `GitHub`, `ChatGPT Sites` ou `chatgpt.site` no título visual da aplicação.
-
-É normal que o navegador sempre mostre um endereço/URL na barra. O objetivo é que esse endereço seja o domínio personalizado, enquanto o título/branding pode mostrar apenas `NoutyChess`.
-
-## URLs e compartilhamento
-
-Depois que o domínio estiver ativo, substituir links públicos/hardcoded de convite e compartilhamento que apontem para outro domínio pelo endereço canônico:
-
-`https://noutychess.ekasy-studio.com.br`
-
-Isso inclui especialmente:
-
-- convite WhatsApp;
-- metadata/Open Graph;
-- metadataBase;
-- canonical URL, se houver;
-- sitemap;
-- compartilhamento de salas;
-- links sociais;
-- qualquer mensagem de convite gerada pelo jogo.
-
-Não alterar endpoints relativos (`/api/...`) desnecessariamente.
-
-## WhatsApp
-
-Quando houver uma sala, a mensagem compartilhada deve incluir o domínio oficial e o código da sala, por exemplo conceitualmente:
-
-`Venha jogar NoutyChess comigo: https://noutychess.ekasy-studio.com.br — Código da sala: ABC123`
-
-Gerar a mensagem dinamicamente e usar URL encoding correto.
-
-## Critério de conclusão
-
-Esta etapa só pode ser marcada como concluída quando:
-
-- os 3 registros existem no Registro.br;
-- o Sites reconhece `noutychess.ekasy-studio.com.br`;
-- HTTPS está válido;
-- o jogo abre nesse domínio;
-- login funciona nesse domínio;
-- APIs funcionam nesse domínio;
-- compartilhamentos usam esse domínio;
-- não houve criação de outro banco/Site;
-- o branding visível usa `NoutyChess`.
-
-Se o Registro.br ainda estiver em transição, NÃO afirmar que a etapa foi concluída.
+Se a verificação falhar, não apague registros de e-mail e não troque nameservers às cegas. Reverta apenas os registros adicionados para o NoutyChess e mantenha o Site/D1 existentes intactos.

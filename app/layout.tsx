@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 import './enhancements.css';
 
-const publicUrl = 'https://noutychess.ekasy-studio.com.br';
+const publicUrl = 'https://noutychess.pro';
 
 export const metadata: Metadata = {
   title: {

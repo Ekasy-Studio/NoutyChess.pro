@@ -2,7 +2,7 @@
 
 Plataforma de xadrez competitiva da **Ekasy Studio**.
 
-**Endereço público planejado:** https://noutychess.ekasy-studio.com.br
+**Endereço público planejado:** https://noutychess.pro
 
 O projeto reúne partidas locais, Academia com professores digitais, multiplayer por código ou pareamento, ranking Elo, recompensas, perfis, amigos, comunidade, Clube Lendário e painel administrativo. A experiência é desenvolvida para computador e celular.
 
@@ -10,7 +10,7 @@ O projeto reúne partidas locais, Academia com professores digitais, multiplayer
 
 - **Organização:** Ekasy Studio
 - **Produto:** NoutyChess
-- **Domínio do jogo:** https://noutychess.ekasy-studio.com.br
+- **Domínio do jogo:** https://noutychess.pro
 - **Domínio da organização:** https://ekasy-studio.com.br
 - **Repositório:** proprietário; acesso ao código não concede licença para copiar, redistribuir ou comercializar o produto.
 

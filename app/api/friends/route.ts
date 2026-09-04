@@ -52,13 +52,11 @@ export async function GET(request: Request) {
 
     const [friends, requests, sent, invites] = await Promise.all([
       d1.prepare(`SELECT f.pair_key, p.user_id, p.display_name, p.avatar_emote, p.rating,
-          CASE WHEN MAX(COALESCE(pp.last_seen_at, 0)) > ? THEN 1 ELSE 0 END AS online,
-          pp.mode AS presence_mode
+          CASE WHEN COALESCE((SELECT MAX(pp.last_seen_at) FROM player_presence pp WHERE pp.user_id = p.user_id), 0) > ? THEN 1 ELSE 0 END AS online,
+          (SELECT pp.mode FROM player_presence pp WHERE pp.user_id = p.user_id ORDER BY pp.last_seen_at DESC LIMIT 1) AS presence_mode
         FROM friendships f
         JOIN profiles p ON p.user_id = CASE WHEN f.user_a = ? THEN f.user_b ELSE f.user_a END
-        LEFT JOIN player_presence pp ON pp.user_id = p.user_id
         WHERE (f.user_a = ? OR f.user_b = ?) AND f.status = 'accepted'
-        GROUP BY f.pair_key, p.user_id
         ORDER BY p.display_name`).bind(now - 45_000, user.userId, user.userId, user.userId).all(),
       d1.prepare(`SELECT f.pair_key, p.user_id, p.display_name, p.avatar_emote, p.rating
         FROM friendships f JOIN profiles p ON p.user_id = f.requested_by
@@ -75,19 +73,17 @@ export async function GET(request: Request) {
     if (query.length >= 2) {
       const escaped = query.replace(/[%_]/g, (character) => `\\${character}`);
       const results = await d1.prepare(`SELECT p.user_id, p.display_name, p.avatar_emote, p.rating,
-          CASE WHEN MAX(COALESCE(pp.last_seen_at, 0)) > ? THEN 1 ELSE 0 END AS online,
-          pp.mode AS presence_mode,
+          CASE WHEN COALESCE((SELECT MAX(pp.last_seen_at) FROM player_presence pp WHERE pp.user_id = p.user_id), 0) > ? THEN 1 ELSE 0 END AS online,
+          (SELECT pp.mode FROM player_presence pp WHERE pp.user_id = p.user_id ORDER BY pp.last_seen_at DESC LIMIT 1) AS presence_mode,
           f.status AS friendship_status,
           f.requested_by
         FROM profiles p
-        LEFT JOIN player_presence pp ON pp.user_id = p.user_id
         LEFT JOIN friendships f ON f.pair_key = CASE
           WHEN ? < p.user_id THEN ? || ':' || p.user_id
           ELSE p.user_id || ':' || ?
         END
         WHERE p.user_id != ?
           AND p.display_name LIKE ? ESCAPE '\\' COLLATE NOCASE
-        GROUP BY p.user_id
         ORDER BY CASE WHEN p.display_name = ? COLLATE NOCASE THEN 0 ELSE 1 END,
           p.display_name COLLATE NOCASE
         LIMIT 12`)

@@ -37,9 +37,12 @@ export async function POST(request: Request) {
     if (scope === 'room' && !roomCode) return NextResponse.json({ error: 'Sala inválida.' }, { status: 400 });
     const d1 = getD1();
     if (roomCode) {
-      const room = await d1.prepare("SELECT code FROM rooms WHERE code = ? AND status IN ('waiting', 'playing') AND last_seen_at > ?")
-        .bind(roomCode, now - 90_000).first();
+      const room = await d1.prepare("SELECT host_id, guest_id FROM rooms WHERE code = ? AND status IN ('waiting', 'playing') AND last_seen_at > ?")
+        .bind(roomCode, now - 90_000).first<{ host_id: string; guest_id: string | null }>();
       if (!room) return NextResponse.json({ error: 'O convite precisa apontar para uma sala ativa.' }, { status: 400 });
+      if (scope === 'room' && room.host_id !== user.userId && room.guest_id !== user.userId) {
+        return NextResponse.json({ error: 'Você não participa desta sala.' }, { status: 403 });
+      }
     }
     const recent = await d1.prepare('SELECT created_at FROM community_messages WHERE user_id = ? ORDER BY created_at DESC LIMIT 1').bind(user.userId).first<{ created_at: number }>();
     if (recent && now - recent.created_at < 3_000) return NextResponse.json({ error: 'Aguarde alguns segundos antes de enviar outra mensagem.' }, { status: 429 });

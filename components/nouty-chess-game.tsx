@@ -110,7 +110,7 @@ const DIFFICULTY_LABELS: Record<AiDifficulty, string> = {
 
 const FILES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
 const RANKS = ['8', '7', '6', '5', '4', '3', '2', '1'];
-const GENERAL_WHATSAPP_TEXT = encodeURIComponent('♟️ Vem jogar xadrez comigo no NoutyChess! https://noutychess.ekasy-studio.com.br');
+const GENERAL_WHATSAPP_TEXT = encodeURIComponent('♟️ Vem jogar xadrez comigo no NoutyChess! https://noutychess.pro');
 
 function allSquares(): Square[] {
   return RANKS.flatMap((rank) => FILES.map((file) => `${file}${rank}` as Square));
@@ -205,6 +205,7 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
   const connectionRef = useRef<DataConnection | null>(null);
   const resultRecordedRef = useRef(false);
   const matchReportedRef = useRef(false);
+  const timeoutDeclaredRef = useRef(false);
   const rightDragRef = useRef<Square | null>(null);
 
   const [revision, setRevision] = useState(0);
@@ -402,6 +403,7 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
     chessRef.current = new Chess();
     resultRecordedRef.current = false;
     matchReportedRef.current = false;
+    timeoutDeclaredRef.current = false;
     setMode(nextMode);
     setPlayerColor(color);
     setOrientation(color);
@@ -430,7 +432,31 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
   }, []);
 
   const returnToMenu = useCallback(() => {
-    if (mode === 'online') cleanupNetwork();
+    if (mode === 'online') {
+      const validRoom = /^[A-Z2-9]{6}$/.test(roomCode);
+      if (authenticatedUser && validRoom && onlinePhase === 'connected' && !currentOutcome) {
+        const winner: Color = playerColor === 'w' ? 'b' : 'w';
+        const result = winner === 'w' ? '1-0' : '0-1';
+        chessRef.current.setHeader('Result', result);
+        const pgn = chessRef.current.pgn({ maxWidth: 0, newline: '\n' });
+        if (connectionRef.current?.open) void connectionRef.current.send({ type: 'resign' });
+        void fetch('/api/competitive', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ action: 'report-match', roomCode, color: playerColor, result, pgn }),
+          keepalive: true,
+        }).catch(() => undefined);
+      }
+      if (authenticatedUser && validRoom) {
+        void fetch('/api/competitive', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ action: 'close-room', roomCode }),
+          keepalive: true,
+        }).catch(() => undefined);
+      }
+      cleanupNetwork();
+    }
     gameTokenRef.current += 1;
     chessRef.current = new Chess();
     setMode('menu');
@@ -442,7 +468,7 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
     setAnnotationMode(false);
     clearAnnotations();
     forceRender();
-  }, [cleanupNetwork, clearAnnotations, forceRender, mode]);
+  }, [authenticatedUser, cleanupNetwork, clearAnnotations, currentOutcome, forceRender, mode, onlinePhase, playerColor, roomCode]);
 
   const handleSquareClick = (square: Square) => {
     if (mode === 'menu' || currentOutcome || aiThinking) return;
@@ -556,6 +582,8 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
           }
           chessRef.current = new Chess(data.fen);
           resultRecordedRef.current = false;
+          matchReportedRef.current = false;
+          timeoutDeclaredRef.current = false;
           setMode('online');
           setPlayerColor('b');
           setOrientation('b');
@@ -598,6 +626,11 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
       if (data.type === 'resign') {
         const winner: Color = role === 'host' ? 'w' : 'b';
         setOutcome({ kind: 'resignation', title: 'O adversário desistiu', detail: 'Você venceu a partida.', winner });
+      }
+      if (data.type === 'timeout' && !timeoutDeclaredRef.current) {
+        timeoutDeclaredRef.current = true;
+        const winner: Color = role === 'host' ? 'w' : 'b';
+        setOutcome({ kind: 'timeout', title: 'Tempo esgotado', detail: 'O relógio do adversário chegou a zero. Você venceu.', winner });
       }
       if (data.type === 'reject') setNetworkError('O adversário rejeitou o último lance por inconsistência de estado.');
     });
@@ -673,6 +706,8 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
 
   const createOnlineRoom = async (matchmaking = false) => {
     cleanupNetwork();
+    setPlayerColor('w');
+    setOrientation('w');
     const code = createRoomCode();
     setMode('online');
     setRoomCode(code);
@@ -707,13 +742,15 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
     }
   };
 
-  const joinOnlineRoom = async (codeOverride?: string) => {
+  const joinOnlineRoom = useCallback(async (codeOverride?: string) => {
     const code = safeRoomCode(codeOverride ?? joinCode);
     if (code.length !== 6) {
       setNetworkError('Digite um código de sala com 6 caracteres.');
       return;
     }
     cleanupNetwork();
+    setPlayerColor('b');
+    setOrientation('b');
     setRoomCode(code);
     setRoomIsMatchmaking(false);
     setMode('online');
@@ -744,7 +781,7 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
       setOnlinePhase('error');
       setNetworkError('Não foi possível carregar o modo online.');
     }
-  };
+  }, [authenticatedUser, cleanupNetwork, competitiveRequest, joinCode, setupConnection]);
 
   const findQuickMatch = async () => {
     if (!authenticatedUser) {
@@ -918,6 +955,25 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
   }, [authenticatedUser, competitiveRequest, mode, onlinePhase, playerColor, roomCode, roomIsMatchmaking]);
 
   useEffect(() => {
+    if (!authenticatedUser || mode !== 'online' || onlinePhase !== 'waiting' || !roomIsMatchmaking || playerColor !== 'w' || !roomCode) return;
+    let cancelled = false;
+    const probe = async () => {
+      try {
+        const body = await competitiveRequest({ action: 'find-match', currentRoomCode: roomCode });
+        const match = isRecord(body.match) && typeof body.match.roomCode === 'string' ? body.match.roomCode : null;
+        if (!cancelled && match && match !== roomCode) await joinOnlineRoom(match);
+      } catch (error) {
+        if (!cancelled) setNetworkError(error instanceof Error ? error.message : 'Não foi possível atualizar a busca por partida.');
+      }
+    };
+    const timer = window.setInterval(() => { void probe(); }, 3_500);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [authenticatedUser, competitiveRequest, joinOnlineRoom, mode, onlinePhase, playerColor, roomCode, roomIsMatchmaking]);
+
+  useEffect(() => {
     if (!authenticatedUser || mode !== 'online' || !outcome || !roomCode || matchReportedRef.current) return;
     matchReportedRef.current = true;
     const result = outcome.winner === 'w' ? '1-0' : outcome.winner === 'b' ? '0-1' : '1/2-1/2';
@@ -944,20 +1000,25 @@ export function NoutyChessGame({ authenticatedUser, initialProfile, initialLeade
       const turn = chessRef.current.turn();
       setClocks((current) => {
         const next = { ...current, [turn]: Math.max(0, current[turn] - elapsed) };
-        if (next[turn] <= 0) {
-          const winner: Color = turn === 'w' ? 'b' : 'w';
-          setOutcome({
-            kind: 'timeout',
-            title: 'Tempo esgotado',
-            detail: winner === 'w' ? 'As brancas venceram no relógio.' : 'As pretas venceram no relógio.',
-            winner,
-          });
+        if (next[turn] <= 0 && !timeoutDeclaredRef.current) {
+          const mayDeclare = mode !== 'online' || turn === playerColor;
+          if (mayDeclare) {
+            timeoutDeclaredRef.current = true;
+            const winner: Color = turn === 'w' ? 'b' : 'w';
+            setOutcome({
+              kind: 'timeout',
+              title: 'Tempo esgotado',
+              detail: winner === 'w' ? 'As brancas venceram no relógio.' : 'As pretas venceram no relógio.',
+              winner,
+            });
+            if (mode === 'online' && connectionRef.current?.open) void connectionRef.current.send({ type: 'timeout' });
+          }
         }
         return next;
       });
     }, 500);
     return () => window.clearInterval(timer);
-  }, [currentOutcome, mode, onlinePhase]);
+  }, [currentOutcome, mode, onlinePhase, playerColor]);
 
   useEffect(() => {
     if (mode !== 'computer' || currentOutcome || chessRef.current.turn() !== 'b') return;
@@ -1596,7 +1657,7 @@ function FriendsPanel({ authenticated, signInPath, roomCode, onJoinRoom }: {
         </div>
       ))}</div>}
       {data.invites.map((invite) => <div className="friend-alert" key={invite.id}><span>{invite.avatar_emote}</span><div><strong>{invite.display_name} chamou você</strong><small>Sala {invite.room_code}</small></div><Button size="xs" onClick={() => void act('accept-invite', { inviteId: invite.id })}><Gamepad2 /> Jogar</Button></div>)}
-      {data.requests.map((request) => <div className="friend-alert" key={request.pair_key}><span>{request.avatar_emote}</span><div><strong>{request.display_name}</strong><small>{request.rating} Elo quer ser seu amigo</small></div><Button size="xs" onClick={() => void act('accept', { pairKey: request.pair_key })}><Heart /> Aceitar</Button></div>)}
+      {data.requests.map((request) => <div className="friend-alert" key={request.pair_key}><span>{request.avatar_emote}</span><div><strong>{request.display_name}</strong><small>{request.rating} Elo quer ser seu amigo</small></div><Button size="xs" disabled={Boolean(busy)} onClick={() => void act('accept', { pairKey: request.pair_key })}><Heart /> Aceitar</Button><Button size="xs" variant="ghost" disabled={Boolean(busy)} onClick={() => void act('remove', { pairKey: request.pair_key })}>Recusar</Button></div>)}
       <div className="friend-list">
         {data.friends.length === 0 ? <p>Busque pelo nome para criar sua primeira rivalidade amistosa.</p> : data.friends.map((friend) => (
           <div key={friend.pair_key}><span>{friend.avatar_emote}</span><div><strong>{friend.display_name}</strong><small><i className={`presence-dot ${Number(friend.online) === 1 ? 'online' : ''}`} />{Number(friend.online) === 1 ? friend.presence_mode === 'playing' ? 'Em partida' : friend.presence_mode === 'matchmaking' ? 'Procurando' : 'Online' : 'Offline'} · {friend.rating} Elo</small></div>{roomCode && <Button size="xs" variant="secondary" disabled={Boolean(busy)} onClick={() => void act('invite', { friendId: friend.user_id, roomCode })}><Send /> Convidar</Button>}<button type="button" className="friend-remove" onClick={() => void act('remove', { pairKey: friend.pair_key })} aria-label={`Remover ${friend.display_name}`}>Remover</button></div>
@@ -1721,7 +1782,7 @@ function OnlineLobby({ phase, roomCode, joinCode, setJoinCode, error, authentica
     }
   };
   const inviteUrl = roomCode
-    ? `https://wa.me/?text=${encodeURIComponent(`♟️ Te desafio para uma partida no NoutyChess! Código da sala: ${roomCode}\nhttps://noutychess.ekasy-studio.com.br`)}`
+    ? `https://wa.me/?text=${encodeURIComponent(`♟️ Te desafio para uma partida no NoutyChess! Código da sala: ${roomCode}\nhttps://noutychess.pro`)}`
     : `https://wa.me/?text=${GENERAL_WHATSAPP_TEXT}`;
   return (
     <div className="online-lobby">

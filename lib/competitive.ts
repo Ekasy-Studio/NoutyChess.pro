@@ -219,7 +219,7 @@ export async function heartbeatRoom(user: ChatGPTUser, code: string, role: 'host
   }
 }
 
-export async function findAutomaticMatch(user: ChatGPTUser): Promise<{ roomCode: string; role: 'guest' } | null> {
+export async function findAutomaticMatch(user: ChatGPTUser, currentRoomCode?: string): Promise<{ roomCode: string; role: 'guest' } | null> {
   await ensureSchema();
   const profile = await getOrCreateProfile(user);
   if (profile.bannedUntil && profile.bannedUntil > Date.now()) throw new Error('Sua conta está temporariamente suspensa.');
@@ -227,15 +227,49 @@ export async function findAutomaticMatch(user: ChatGPTUser): Promise<{ roomCode:
   const now = Date.now();
   const staleBefore = now - 90_000;
   await d1.prepare("UPDATE rooms SET status = 'closed', matchmaking = 0 WHERE matchmaking = 1 AND status = 'waiting' AND last_seen_at <= ?").bind(staleBefore).run();
-  const candidates = await d1.prepare(
-    `SELECT code FROM rooms WHERE matchmaking = 1 AND status = 'waiting' AND guest_id IS NULL AND host_id != ? AND last_seen_at > ? ORDER BY created_at ASC LIMIT 5`,
-  ).bind(user.userId, staleBefore).all<{ code: string }>();
+
+  let ownRoom: { code: string; created_at: number } | null = null;
+  if (currentRoomCode) {
+    ownRoom = await d1.prepare(
+      `SELECT code, created_at FROM rooms
+       WHERE code = ? AND host_id = ? AND matchmaking = 1 AND status = 'waiting'
+         AND guest_id IS NULL AND last_seen_at > ?`,
+    ).bind(currentRoomCode, user.userId, staleBefore).first<{ code: string; created_at: number }>();
+  } else {
+    await d1.prepare(
+      "UPDATE rooms SET status = 'closed', matchmaking = 0, last_seen_at = ? WHERE host_id = ? AND matchmaking = 1 AND status = 'waiting' AND guest_id IS NULL",
+    ).bind(now, user.userId).run();
+  }
+
+  const candidates = ownRoom
+    ? await d1.prepare(
+      `SELECT code, created_at FROM rooms
+       WHERE matchmaking = 1 AND status = 'waiting' AND guest_id IS NULL
+         AND host_id != ? AND last_seen_at > ?
+         AND (created_at < ? OR (created_at = ? AND code < ?))
+       ORDER BY created_at ASC, code ASC LIMIT 5`,
+    ).bind(user.userId, staleBefore, ownRoom.created_at, ownRoom.created_at, ownRoom.code).all<{ code: string; created_at: number }>()
+    : await d1.prepare(
+      `SELECT code, created_at FROM rooms
+       WHERE matchmaking = 1 AND status = 'waiting' AND guest_id IS NULL
+         AND host_id != ? AND last_seen_at > ?
+       ORDER BY created_at ASC, code ASC LIMIT 5`,
+    ).bind(user.userId, staleBefore).all<{ code: string; created_at: number }>();
+
   for (const candidate of candidates.results ?? []) {
     const result = await d1.prepare(
       `UPDATE rooms SET guest_id = ?, status = 'playing', matchmaking = 0, last_seen_at = ?
-       WHERE code = ? AND matchmaking = 1 AND guest_id IS NULL AND status = 'waiting' AND host_id != ? AND last_seen_at > ?`,
+       WHERE code = ? AND matchmaking = 1 AND guest_id IS NULL
+         AND status = 'waiting' AND host_id != ? AND last_seen_at > ?`,
     ).bind(user.userId, now, candidate.code, user.userId, staleBefore).run();
-    if ((result.meta.changes ?? 0) === 1) return { roomCode: candidate.code, role: 'guest' };
+    if ((result.meta.changes ?? 0) === 1) {
+      if (ownRoom && ownRoom.code !== candidate.code) {
+        await d1.prepare(
+          "UPDATE rooms SET status = 'closed', matchmaking = 0, last_seen_at = ? WHERE code = ? AND host_id = ? AND status = 'waiting' AND guest_id IS NULL",
+        ).bind(now, ownRoom.code, user.userId).run();
+      }
+      return { roomCode: candidate.code, role: 'guest' };
+    }
   }
   return null;
 }
@@ -268,6 +302,7 @@ export async function submitMatchReport(user: ChatGPTUser, input: { roomCode: st
   const d1 = getD1();
   const room = await d1.prepare('SELECT host_id, guest_id, status FROM rooms WHERE code = ?').bind(input.roomCode).first<Record<string, unknown>>();
   if (!room || !room.guest_id) throw new Error('Sala competitiva inválida.');
+  if (room.status === 'terminated') throw new Error('Esta partida foi encerrada pela moderação.');
   const expectedId = input.color === 'w' ? String(room.host_id) : String(room.guest_id);
   if (expectedId !== user.userId) throw new Error('Cor do jogador inválida.');
   const pgn = validatedPgn(input.pgn, input.result);
