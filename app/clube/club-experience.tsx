@@ -15,7 +15,11 @@ export function ClubExperience({ membership, signInPath }: { membership: { activ
     setBusy(true);
     setError('');
     try {
-      const response = await fetch('/api/membership', { method: 'POST' });
+      const response = await fetch('/api/membership', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: '{}',
+      });
       const body = await response.json() as { error?: string; active?: boolean; interested?: boolean };
       if (!response.ok) throw new Error(body.error ?? 'Não foi possível enviar sua solicitação.');
       setRequested(Boolean(body.interested) || !body.active);
